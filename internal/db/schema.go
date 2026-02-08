@@ -60,3 +60,15 @@ CREATE TABLE IF NOT EXISTS claims (
 CREATE INDEX IF NOT EXISTS idx_claims_path ON claims(path_norm);
 CREATE INDEX IF NOT EXISTS idx_claims_agent ON claims(agent_name);
 `
+
+// migrateV2 adds a UNIQUE constraint on (agent_name, path_norm) in claims.
+// It first deduplicates any existing rows, then creates the unique index.
+const migrateV2 = `
+-- Remove duplicate claims, keeping the row with the latest updated_at.
+DELETE FROM claims WHERE id NOT IN (
+    SELECT MAX(id) FROM claims GROUP BY agent_name, path_norm
+);
+
+-- Enforce uniqueness going forward.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_agent_path ON claims(agent_name, path_norm);
+`

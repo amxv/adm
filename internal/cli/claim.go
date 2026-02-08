@@ -48,19 +48,12 @@ func runClaim(cmd *cobra.Command, args []string) error {
 	_, err = d.Exec(`
 		INSERT INTO claims (agent_name, path_pattern, path_norm, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT DO NOTHING
+		ON CONFLICT(agent_name, path_norm) DO UPDATE SET
+			path_pattern = excluded.path_pattern,
+			updated_at = excluded.updated_at
 	`, claimAgent, pathPattern, norm, now, now)
 	if err != nil {
-		return fmt.Errorf("insert claim: %w", err)
-	}
-
-	// Handle upsert: if the row already existed, update timestamps.
-	_, err = d.Exec(`
-		UPDATE claims SET updated_at = ?
-		WHERE agent_name = ? AND path_norm = ?
-	`, now, claimAgent, norm)
-	if err != nil {
-		return fmt.Errorf("update claim: %w", err)
+		return fmt.Errorf("upsert claim: %w", err)
 	}
 
 	fmt.Printf("claimed: %s -> %s\n", claimAgent, norm)

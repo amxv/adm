@@ -49,7 +49,8 @@ func FindRepoRoot() (string, error) {
 	}
 
 	for {
-		if info, err := os.Stat(filepath.Join(dir, ".git")); err == nil && info.IsDir() {
+		// .git can be a directory (normal repos) or a file (worktrees/submodules).
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)

@@ -33,6 +33,13 @@ func runBroadcast(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
+	// Validate sender exists.
+	var senderExists int
+	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", broadcastFrom).Scan(&senderExists)
+	if err != nil {
+		return fmt.Errorf("sender %q not found (agents must register first)", broadcastFrom)
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	msgID := generateMsgID()
 

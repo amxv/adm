@@ -58,7 +58,26 @@ func setPragmas(db *sql.DB) error {
 	return nil
 }
 
-func migrate(db *sql.DB) error {
-	_, err := db.Exec(schemaV1)
-	return err
+func migrate(d *sql.DB) error {
+	// Always run v1 (idempotent CREATE IF NOT EXISTS).
+	if _, err := d.Exec(schemaV1); err != nil {
+		return fmt.Errorf("schema v1: %w", err)
+	}
+
+	// Check current schema version.
+	var version int
+	if err := d.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+
+	if version < 2 {
+		if _, err := d.Exec(migrateV2); err != nil {
+			return fmt.Errorf("schema v2: %w", err)
+		}
+		if _, err := d.Exec("PRAGMA user_version = 2"); err != nil {
+			return fmt.Errorf("set user_version: %w", err)
+		}
+	}
+
+	return nil
 }

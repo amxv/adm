@@ -37,6 +37,13 @@ func runSend(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
+	// Validate sender exists.
+	var senderExists int
+	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", sendFrom).Scan(&senderExists)
+	if err != nil {
+		return fmt.Errorf("sender %q not found (agents must register first)", sendFrom)
+	}
+
 	// Validate recipient exists.
 	var exists int
 	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", sendTo).Scan(&exists)
