@@ -5,6 +5,9 @@
 *.so
 *.dylib
 
+# Release artifacts
+/dist/
+
 # Go
 /vendor/
 
