@@ -505,7 +505,7 @@ Exit criteria:
 
 - Both provider paths tested in real workflow
 
-Notes: Claude Code hooks: PostToolUse (post-tool-sync.sh) for message delivery, PreToolUse (pre-tool-claim-check.sh) for file claim warnings, with example settings.json. Codex shell hook (shell-hook.sh) with dual mode (shim + interactive), repo-root discovery, adm binary fallback, structured A2A_MSG output, and PROMPT_COMMAND integration. Hook guide (docs/hooks.md) and operations guide (docs/operations.md) added. E2E tested by Codex agent. Commit: `c1050d6`.
+Notes: Claude Code hooks: PostToolUse (post-tool-sync.sh) for message delivery, PreToolUse (pre-tool-claim-check.sh) for file claim warnings, with example settings.json. Codex shell hook (shell-hook.sh) with dual mode (shim + interactive), repo-root discovery, adm binary fallback, structured A2A_MSG output, and PROMPT_COMMAND integration. Hook guide (docs/hooks.md) and operations guide (docs/operations.md) added. Smoke test scripts (scripts/smoke-hooks.sh, scripts/smoke.sh) covering full Codex sync lifecycle and Claude hook JSON output. Both provider paths validated end-to-end: Claude hooks wired via .claude/settings.local.json with passive PostToolUse delivery confirmed (message injection on every tool call without explicit polling), and Codex hook tested with pending→offered→delivered lifecycle. Live cross-agent round-trip verified (Claude↔Codex via hooks). Commits: `c1050d6`, `f4bbea8`.
 
 ### Phase 6: Private Release Packaging
 
