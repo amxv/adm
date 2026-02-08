@@ -14,13 +14,16 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 6 (next)
+- Current phase: Phase 8 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
   - Phase 2 completed in commit `1fae7f0` (`sync`, `inbox`, ack-token flow, delivery-state tests)
   - Phase 3 completed (claims uniqueness, sender validation, worktree repo root, 22 CLI integration tests)
   - Phase 4 completed in commit `9c5a767` (benchmarks, stress test, migration fast path, BEGIN IMMEDIATE)
+  - Phase 5 completed in commit `c1050d6` (hooks, smoke tests, operational docs, live E2E validation)
+  - Phase 6 completed in commit `01acafe` (Makefile, installer, version injection, cross-platform builds)
+  - Phase 7 completed in commit `517faab` (runtime smoke script, 30 CLI + 6 hook assertions, self-verified)
 
 ## Scope
 
@@ -509,6 +512,8 @@ Notes: Claude Code hooks: PostToolUse (post-tool-sync.sh) for message delivery, 
 
 ### Phase 6: Private Release Packaging
 
+Status: completed
+
 Deliverables:
 
 - Add cross-platform build targets for `darwin/linux` and `amd64/arm64`
@@ -528,7 +533,11 @@ Exit criteria:
 - Installed binary version matches requested/default version
 - Checksums are validated successfully
 
+Notes: Makefile with cross-platform build targets, versioned tar.gz archives, SHA-256 checksums. Version injection via -ldflags (`adm --version`). Installer script with OS/arch detection and checksum verification. Agent identity switch helper (`scripts/adm-switch.sh`). Tested release build producing 4 platform archives (~2.7MB each). Hooks moved to global settings (`~/.gg/claude/settings.json`), binary installed to `~/.local/bin/adm`. Commit: `01acafe`.
+
 ### Phase 7: Runtime Validation Gate (Self-Verified)
+
+Status: completed
 
 Deliverables:
 
@@ -547,6 +556,8 @@ Exit criteria:
 - Runtime smoke passes end-to-end in a clean temp directory.
 - Validation is performed by the implementing agent itself (not assumed from tests).
 - Phase notes include commands run and observed outputs.
+
+Notes: Expanded `scripts/smoke.sh` into a comprehensive 30-assertion CLI smoke test covering 7 sections: register (4 assertions including re-register idempotency), status (5 assertions including task update and liveness), send+sync delivery lifecycle (8 assertions including pending→offered→delivered, batch_token flow, negative paths for unknown sender/recipient), broadcast (4 assertions including sender exclusion), claim/unclaim/check-claim (5 assertions including self-check, unclaim, and idempotent re-claim), inbox read-only semantics (3 assertions confirming inbox doesn't consume messages), and version output (1 assertion). All tests run in an isolated temp workspace with `.git` marker. Hook smoke tests (6 assertions) chain at the end via `smoke-hooks.sh`. Commands run: `bash scripts/smoke.sh`. Observed outputs: all 30 CLI + 6 hook assertions passed, version reported as `adm version dev`. Commit: `517faab`.
 
 ### Phase 8: README and Operator Docs
 
@@ -601,6 +612,26 @@ Exit criteria:
 
 - UI is usable for day-to-day multi-agent monitoring
 - Key debugging tasks can be completed without SQL/manual log inspection
+
+### Phase 11: Identity and Integrity Hardening (Session-Based)
+
+Deliverables:
+
+- Add session-based agent identity so agents do not pass tokens on every command.
+- Introduce `adm use <agent-name>` (or equivalent) to set active identity for the workspace/session.
+- Persist session capability in local state (for example `.agents/adm/state/<agent>.session`) and auto-load it in CLI/hook flows.
+- Require authenticated session capability for mutating commands:
+  - `send`, `broadcast`, `claim`, `unclaim`, `sync` heartbeat/mutation paths
+- Keep read-only commands unauthenticated (`status`, `inbox`, UI read endpoints).
+- Add append-only mutation audit log (who, action, target, timestamp, outcome).
+- Add admin-only maintenance guardrails for destructive operations (explicit env/flag gate + confirmation).
+
+Exit criteria:
+
+- Agents can switch identity without per-command token friction.
+- Unauthorized mutations fail cleanly when no valid session capability is present.
+- Audit trail records all mutating operations.
+- Runtime smoke suite includes session/authorization checks.
 
 ## Phase Completion Loop
 
@@ -675,16 +706,17 @@ Mitigation:
 - [x] Add benchmarks and stress script
 - [x] Validate against performance targets
 - [x] Document hook usage for Claude and Codex
-- [ ] Implement private release packaging and installer (`curl | bash`)
-- [ ] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
+- [x] Implement private release packaging and installer (`curl | bash`)
+- [x] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
 - [ ] Add/update `README.md` for install + quickstart + integrations
 - [ ] Build Web UI MVP using Vite + React (messages, search, filters)
 - [ ] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
+- [ ] Implement session-based identity hardening and mutation audit trail
 
 ## Immediate Next Step
 
-Start Phase 6: Private release packaging.
+Start Phase 8: README and Operator Docs.
 
-1. Add cross-platform build targets (darwin/linux, amd64/arm64)
-2. Create Makefile or build script for versioned release artifacts
-3. Add installer script (scripts/install.sh) with OS/arch detection and checksum verification
+1. Add/update `README.md` with install, quickstart, hook integration, project layout, troubleshooting
+2. Validate README commands against current CLI behavior
+3. Start Phase 9: Web UI MVP
