@@ -87,6 +87,66 @@ go build -o adm ./cmd/adm
 ./adm status
 ```
 
+## Using ADM (for agents)
+
+ADM hooks are wired up in this repo. Messages are delivered automatically via PostToolUse hooks - you don't need to poll. Just use the CLI to send/receive.
+
+### Identity
+
+Your agent name is read from `.agents/adm/agent`. Switch identity with:
+
+```bash
+scripts/adm-switch.sh frontend "working on React components"
+```
+
+Or manually: `echo -n "myname" > .agents/adm/agent`
+
+### Sending messages
+
+```bash
+# Direct message to another agent
+./adm send --from <your-name> --to <recipient> --msg "your message"
+
+# Broadcast to all agents
+./adm broadcast --from <your-name> --msg "your message"
+```
+
+Both sender and recipient must be registered agents.
+
+### Receiving messages
+
+Messages are delivered **automatically** into your context after every tool call via the PostToolUse hook. You don't need to do anything - messages arrive passively.
+
+If you need to check manually:
+
+```bash
+# Read-only view of your inbox (does not change delivery state)
+./adm inbox --agent <your-name>
+```
+
+### Coordination
+
+```bash
+# See who's online and what they're working on
+./adm status
+
+# Claim files you're working on (warns other agents, doesn't block)
+./adm claim --agent <your-name> "src/auth/*.go"
+
+# Release a claim
+./adm unclaim --agent <your-name> "src/auth/*.go"
+```
+
+### Registration
+
+Register yourself when you start a session:
+
+```bash
+./adm register --name <your-name> --task "description of what you're doing"
+```
+
+Re-registering updates your task description and refreshes your liveness timestamp.
+
 ## Database
 
 SQLite with these pragmas set on every open:
