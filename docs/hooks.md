@@ -6,15 +6,23 @@ ADM delivers messages passively through hook systems. Agents never poll for mess
 
 - `adm` binary installed and on PATH
 - `jq` installed (for JSON parsing in hook scripts)
-- Agent registered with `adm register --name <name> --task <description>`
+- Agent identity set with `adm use <name> --task <description>`
 
-## Environment Variable
+## Identity
 
-Set `ADM_AGENT` to your agent's name before starting a session:
+Set your identity before starting a session. The recommended approach is `adm use`:
+
+```bash
+adm use my-agent --task "working on feature X"
+```
+
+This creates a session file that hooks read automatically. Alternatively, set the `ADM_AGENT` environment variable:
 
 ```bash
 export ADM_AGENT="my-agent"
 ```
+
+Hooks resolve identity in order: `ADM_AGENT` env var > session file > legacy fallback.
 
 ## Claude Code
 
@@ -63,9 +71,9 @@ Claude Code has a hook system that runs shell commands before/after tool calls. 
    }
    ```
 
-3. Register the agent:
+3. Set your identity:
    ```bash
-   adm register --name my-agent --task "working on feature X"
+   adm use my-agent --task "working on feature X"
    ```
 
 ### How it works
@@ -135,9 +143,9 @@ Codex operates primarily through bash. The shell hook sources into your shell en
 
    Or add to your shell profile for automatic activation.
 
-2. Register the agent:
+2. Set your identity:
    ```bash
-   adm register --name codex-1 --task "working on API"
+   adm use codex-1 --task "working on API"
    ```
 
 ### How it works
@@ -190,8 +198,9 @@ Hook state is stored in `.agents/adm/state/`:
 
 ```
 .agents/adm/state/
-  my-agent.ack_token      # Last batch token for acknowledgement
+  session.json              # Active agent identity (set by adm use)
+  my-agent.ack_token        # Last batch token for acknowledgement
   codex-1.ack_token
 ```
 
-These files are small (one token per agent) and safe to delete if delivery state needs to be reset.
+The `session.json` file is created by `adm use` and read by hooks to resolve identity. The `.ack_token` files are small (one token per agent) and safe to delete if delivery state needs to be reset.

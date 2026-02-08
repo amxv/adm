@@ -43,10 +43,11 @@ internal/cli/                 Command definitions (one file per command)
   sync.go                     adm sync - hook delivery endpoint
   inbox.go                    adm inbox - read-only message view
   ui.go                       adm ui - start local web dashboard
+  taskupdate.go               adm task-update - update task without re-register
   use.go                      adm use - set active agent identity
   whoami.go                   adm whoami - show current identity
   admin.go                    adm admin - maintenance commands (gated)
-  cli_test.go                 CLI integration tests (36 tests)
+  cli_test.go                 CLI integration tests (40 tests)
   bench_test.go               Benchmarks and concurrent stress test
 internal/identity/            Session-based agent identity
   identity.go                 Session management, identity resolution chain
@@ -111,22 +112,29 @@ ADM hooks are wired up in this repo. Messages are delivered automatically via Po
 
 ### Identity
 
-Your agent name is read from `.agents/adm/agent`. Switch identity with:
+Do not set identity by editing files directly. Identity should be managed through ADM commands.
+
+Set your identity once when you start a session:
 
 ```bash
-scripts/adm-switch.sh frontend "working on React components"
+./adm use <your-name> --task "working on React components"
+./adm whoami
 ```
 
-Or manually: `echo -n "myname" > .agents/adm/agent`
+Update your task as work changes:
+
+```bash
+./adm task-update --task "new focus area"
+```
 
 ### Sending messages
 
 ```bash
 # Direct message to another agent
-./adm send --from <your-name> --to <recipient> --msg "your message"
+./adm send --to <recipient> --msg "your message"
 
 # Broadcast to all agents
-./adm broadcast --from <your-name> --msg "your message"
+./adm broadcast --msg "your message"
 ```
 
 Both sender and recipient must be registered agents.
@@ -139,7 +147,7 @@ If you need to check manually:
 
 ```bash
 # Read-only view of your inbox (does not change delivery state)
-./adm inbox --agent <your-name>
+./adm inbox
 ```
 
 ### Coordination
@@ -149,10 +157,10 @@ If you need to check manually:
 ./adm status
 
 # Claim files you're working on (warns other agents, doesn't block)
-./adm claim --agent <your-name> "src/auth/*.go"
+./adm claim "src/auth/*.go"
 
 # Release a claim
-./adm unclaim --agent <your-name> "src/auth/*.go"
+./adm unclaim "src/auth/*.go"
 ```
 
 ### Registration

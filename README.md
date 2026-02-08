@@ -45,20 +45,26 @@ adm --version
 Every agent needs to register before sending or receiving messages. Run these from inside any git repository:
 
 ```bash
-# Register yourself
-adm register --name alice --task "building auth module"
+# Set your identity (registers and creates a session)
+adm use alice --task "building auth module"
+
+# Check your identity
+adm whoami
 
 # See who's online
 adm status
 
-# Send a direct message
-adm send --from alice --to bob --msg "hold off on auth changes"
+# Send a direct message (identity resolved from session)
+adm send --to bob --msg "hold off on auth changes"
 
 # Broadcast to all agents
-adm broadcast --from alice --msg "deploying in 5 minutes"
+adm broadcast --msg "deploying in 5 minutes"
+
+# Update your task without re-registering
+adm task-update --task "now reviewing PRs"
 
 # Check your inbox (read-only, does not change delivery state)
-adm inbox --agent alice
+adm inbox
 ```
 
 ### Message delivery
@@ -84,15 +90,15 @@ If a hook crashes after receiving messages but before saving the batch token, th
 Claims are soft signals that warn other agents -- they never block edits.
 
 ```bash
-# Claim files you're working on
-adm claim --agent alice "src/auth/*.go"
+# Claim files you're working on (identity resolved from session)
+adm claim "src/auth/*.go"
 
 # Another agent checks before editing
 adm check-claim --file src/auth/login.go --agent bob
 # Output: {"claimed":true,"owner":"alice","pattern":"src/auth/*.go",...}
 
 # Release when done
-adm unclaim --agent alice "src/auth/*.go"
+adm unclaim "src/auth/*.go"
 ```
 
 ## Hook Integration
@@ -146,12 +152,12 @@ Setup:
    }
    ```
 
-3. Register and start working:
+3. Set your identity and start working:
    ```bash
-   adm register --name my-agent --task "working on feature X"
+   adm use my-agent --task "working on feature X"
    ```
 
-Use `.claude/settings.local.json` (not committed) so each session can use a unique agent name.
+Use `.claude/settings.local.json` (not committed) so each session can use a unique agent name. The hooks resolve identity from `ADM_AGENT` env var or the session file created by `adm use`.
 
 ### Codex
 
@@ -160,7 +166,7 @@ Source the shell hook to get automatic message delivery between commands:
 ```bash
 export ADM_AGENT="codex-1"
 source hooks/codex/shell-hook.sh
-adm register --name codex-1 --task "working on API"
+adm use codex-1 --task "working on API"
 ```
 
 Messages appear inline between command outputs:
@@ -184,13 +190,14 @@ Any agent with terminal access can use `adm` directly. For agents without hook s
 
 ### Switching identity
 
-Use the helper script to switch which agent you are:
+Switch your active agent identity:
 
 ```bash
-scripts/adm-switch.sh frontend "working on React components"
+adm use frontend --task "working on React components"
+adm whoami  # prints: frontend
 ```
 
-This writes the agent name to `.agents/adm/agent` and registers with the database.
+This registers the agent, creates a session, and sets the identity for all subsequent commands.
 
 ## Project Layout
 
@@ -198,13 +205,14 @@ This writes the agent name to `.agents/adm/agent` and registers with the databas
 cmd/adm/main.go              CLI entrypoint
 internal/cli/                 Command implementations
 internal/db/                  SQLite layer (open, pragmas, migrations)
+internal/identity/            Session-based agent identity
+internal/audit/               Mutation audit logging
 internal/pathnorm/            Path normalization for claims
 hooks/claude/                 Claude Code hook scripts
 hooks/codex/                  Codex shell hook
 scripts/
   install.sh                  Release installer
   smoke.sh                    Runtime smoke tests
-  adm-switch.sh               Agent identity switcher
 docs/
   hooks.md                    Detailed hook integration guide
   operations.md               Database, state files, troubleshooting
@@ -217,8 +225,8 @@ All state lives under `.agents/adm/` at the git repository root:
 ```
 .agents/adm/
   adm.db                      SQLite database (WAL mode)
-  agent                       Current agent identity (read by hooks)
   state/
+    session.json               Active agent identity (set by adm use)
     <agent>.ack_token          Delivery state per agent
 ```
 

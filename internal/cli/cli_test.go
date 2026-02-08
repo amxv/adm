@@ -81,6 +81,7 @@ func resetFlags() {
 	syncFormat = "json"
 	inboxAgent = ""
 	useTask = ""
+	taskUpdateTask = ""
 	purgeDays = 7
 	auditLogLimit = 50
 }
@@ -799,5 +800,77 @@ func TestAdminPurgeDelivered(t *testing.T) {
 	}
 	if !strings.Contains(out, "purged") {
 		t.Errorf("expected purged output: %s", out)
+	}
+}
+
+// ---- Task-update ----
+
+func TestTaskUpdateHappyPath(t *testing.T) {
+	testSetup(t)
+
+	runCmd("use", "alice", "--task", "initial task")
+
+	out, err := runCmd("task-update", "--task", "new focus area")
+	if err != nil {
+		t.Fatalf("task-update: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "task updated") {
+		t.Errorf("expected 'task updated', got: %s", out)
+	}
+	if !strings.Contains(out, "new focus area") {
+		t.Errorf("expected new task in output: %s", out)
+	}
+
+	// Verify status reflects the update.
+	out, err = runCmd("status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "new focus area") {
+		t.Errorf("status should show updated task: %s", out)
+	}
+}
+
+func TestTaskUpdateFailsWithoutIdentity(t *testing.T) {
+	testSetup(t)
+
+	_, err := runCmd("task-update", "--task", "should fail")
+	if err == nil {
+		t.Fatal("expected error when no identity is available")
+	}
+	if !strings.Contains(err.Error(), "no agent identity found") {
+		t.Errorf("expected identity error, got: %v", err)
+	}
+}
+
+func TestTaskUpdateFailsForUnregisteredAgent(t *testing.T) {
+	testSetup(t)
+
+	os.Setenv("ADM_AGENT", "ghost")
+	defer os.Unsetenv("ADM_AGENT")
+
+	_, err := runCmd("task-update", "--task", "should fail")
+	if err == nil {
+		t.Fatal("expected error for unregistered agent")
+	}
+	if !strings.Contains(err.Error(), "not registered") {
+		t.Errorf("expected registration error, got: %v", err)
+	}
+}
+
+func TestTaskUpdateWithEnvVar(t *testing.T) {
+	testSetup(t)
+
+	runCmd("register", "--name", "env-agent", "--task", "old task")
+
+	os.Setenv("ADM_AGENT", "env-agent")
+	defer os.Unsetenv("ADM_AGENT")
+
+	out, err := runCmd("task-update", "--task", "updated via env")
+	if err != nil {
+		t.Fatalf("task-update: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "updated via env") {
+		t.Errorf("expected new task in output: %s", out)
 	}
 }

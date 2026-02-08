@@ -92,7 +92,7 @@ echo ""
 # ============================================================
 # 1. Register
 # ============================================================
-echo "[1/9] Register"
+echo "[1/10] Register"
 
 out=$($ADM register --name alice --task "building auth module")
 assert_contains "$out" "registered" "register alice"
@@ -113,7 +113,7 @@ echo ""
 # ============================================================
 # 2. Status
 # ============================================================
-echo "[2/9] Status"
+echo "[2/10] Status"
 
 out=$($ADM status)
 assert_contains "$out" "alice" "status shows alice"
@@ -128,7 +128,7 @@ echo ""
 # ============================================================
 # 3. Send + Sync (delivery lifecycle)
 # ============================================================
-echo "[3/9] Send + Sync delivery lifecycle"
+echo "[3/10] Send + Sync delivery lifecycle"
 
 # Send direct message
 out=$($ADM send --from alice --to bob --msg "hey bob, check auth module")
@@ -174,7 +174,7 @@ echo ""
 # ============================================================
 # 4. Broadcast
 # ============================================================
-echo "[4/9] Broadcast"
+echo "[4/10] Broadcast"
 
 $ADM broadcast --from alice --msg "team standup in 5 min" >/dev/null
 
@@ -202,7 +202,7 @@ echo ""
 # ============================================================
 # 5. Claim / Check-Claim / Unclaim
 # ============================================================
-echo "[5/9] Claim / Check-Claim / Unclaim"
+echo "[5/10] Claim / Check-Claim / Unclaim"
 
 $ADM claim --agent alice "src/auth/*.go" >/dev/null
 
@@ -256,7 +256,7 @@ echo ""
 # ============================================================
 # 6. Inbox (read-only)
 # ============================================================
-echo "[6/9] Inbox (read-only)"
+echo "[6/10] Inbox (read-only)"
 
 # Send a fresh message to carol
 $ADM send --from bob --to carol --msg "carol, approve the deploy" >/dev/null
@@ -286,7 +286,7 @@ echo ""
 # ============================================================
 # 7. Version
 # ============================================================
-echo "[7/9] Version"
+echo "[7/10] Version"
 
 ver_out=$($ADM --version 2>&1 || $ADM version 2>&1 || echo "no-version")
 if [[ "$ver_out" != "no-version" ]]; then
@@ -302,7 +302,7 @@ echo ""
 # ============================================================
 # 8. Session-based identity (adm use)
 # ============================================================
-echo "[8/9] Session-based identity"
+echo "[8/10] Session-based identity"
 
 # Set identity
 out=$($ADM use dave --task "session testing")
@@ -370,7 +370,7 @@ echo ""
 # ============================================================
 # 9. Admin commands + audit log
 # ============================================================
-echo "[9/9] Admin commands + audit log"
+echo "[9/10] Admin commands + audit log"
 
 # Admin commands should fail without ADM_ADMIN=1
 assert_exit_nonzero "$ADM admin audit-log" "admin audit-log requires ADM_ADMIN=1"
@@ -385,6 +385,28 @@ assert_contains "$out" "send" "audit log contains send entries"
 # Purge (with --days 0 to test the command works; no old messages to purge)
 out=$(ADM_ADMIN=1 $ADM admin purge-delivered --days 0)
 assert_contains "$out" "purged" "purge-delivered executes"
+
+echo "  $PASS passed"
+echo ""
+
+# ============================================================
+# 10. Task-update
+# ============================================================
+echo "[10/10] Task-update"
+
+# task-update requires identity
+out=$($ADM task-update --task "updated task via session")
+assert_contains "$out" "task updated" "task-update with session identity"
+assert_contains "$out" "dave" "task-update shows agent name"
+assert_contains "$out" "updated task via session" "task-update shows new task"
+
+# Verify status reflects the update
+out=$($ADM status)
+assert_contains "$out" "updated task via session" "status shows task-update result"
+
+# task-update fails without identity (clear session)
+rm -f ".agents/adm/state/session.json"
+assert_exit_nonzero "$ADM task-update --task 'should fail'" "task-update fails without identity"
 
 echo "  $PASS passed"
 echo ""

@@ -36,6 +36,7 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(inboxCmd)
 	rootCmd.AddCommand(uiCmd)
+	rootCmd.AddCommand(taskUpdateCmd)
 	rootCmd.AddCommand(useCmd)
 	rootCmd.AddCommand(whoamiCmd)
 	rootCmd.AddCommand(adminCmd)

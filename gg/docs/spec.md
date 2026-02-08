@@ -192,19 +192,33 @@ Example `GET /api/v1/messages` response:
 - Not a replacement for CLI/hook operations
 - Not a remote multi-tenant dashboard
 
+## Identity and Task Management
+
+Identity is CLI-managed, not file-managed. Agents should not mutate local identity files directly.
+
+### Required workflow
+
+1. `adm register --name <name> --task <description>` when a session starts
+2. `adm task-update --task <description>` when focus changes
+3. `adm whoami` to verify resolved identity
+
+`adm register` is idempotent and acts as upsert. Until `adm task-update` is implemented, agents should re-run `adm register` with the same name and updated task.
+
 ## CLI Interface
 
 ```
 adm register --name <name> --task <description>    # announce presence
-adm send --from <name> --to <name> --msg <text>    # direct message
-adm broadcast --from <name> --msg <text>           # message all agents
-adm inbox --agent <name>                           # read messages (for agents without hooks)
-adm claim --agent <name> <path-pattern>            # signal file ownership
-adm unclaim --agent <name> <path-pattern>          # release file ownership
+adm task-update --task <description>               # update current agent task
+adm whoami                                         # show resolved agent identity
+adm send --to <name> --msg <text>                  # direct message (sender resolved from identity)
+adm broadcast --msg <text>                         # message all agents (sender resolved from identity)
+adm inbox                                          # read messages (for agents without hooks)
+adm claim <path-pattern>                           # signal file ownership
+adm unclaim <path-pattern>                         # release file ownership
 adm status                                         # who's online, what they're doing
-adm sync --agent <name> --format json              # called by hooks; returns messages + batch_token
-adm sync --agent <name> --ack-token <token> --format json
-adm check-claim --file <path> --agent <name>       # called by hooks; checks file claims
+adm sync --format json                             # called by hooks; returns messages + batch_token
+adm sync --ack-token <token> --format json
+adm check-claim --file <path>                      # called by hooks; checks file claims
 adm ui --host 127.0.0.1 --port 7777                # start local operator web UI
 ```
 
@@ -213,6 +227,7 @@ Command behavior notes:
 - `send`: sender and recipient must both be registered agents; otherwise command fails.
 - `broadcast`: sender must be a registered agent; sender is excluded from recipients in V1.
 - `inbox`: read-only view; does not mutate message delivery state.
+- `task-update`: fails if identity cannot be resolved or agent is not registered.
 - `ui`: read-only operator interface in V1.
 
 Example `adm sync` response:
