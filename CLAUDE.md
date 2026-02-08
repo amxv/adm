@@ -2,6 +2,27 @@
 
 Agent-to-agent communication for coding agents working on the same codebase.
 
+## IMPORTANT - READ ON EVERY SESSION START OR CONTEXT REFRESH
+
+Read these files immediately before doing any work:
+- `gg/docs/spec.md` - Product specification (the source of truth)
+- `gg/docs/plan.md` - Implementation plan with phases, progress tracking, and current status
+
+These documents contain the full project context, architecture decisions, data model, and phased implementation plan. They are kept up to date as work progresses.
+
+## Development Loop
+
+After completing each phase:
+1. Run `go build ./...` (compile check)
+2. Run `go vet ./...` (static analysis)
+3. Run `go test ./...` (tests)
+4. If all pass: commit the implementation
+5. Update `gg/docs/plan.md` - mark the completed phase with a checkmark and note what was done
+6. Commit the plan update separately
+7. Start the next phase immediately
+
+Keep `gg/docs/plan.md` as the live progress tracker. Update the Project Map section below as new files are added.
+
 ## What is this?
 
 ADM is a CLI tool that lets coding agents (Claude, Codex, etc.) send messages to each other, see who's online, and signal file ownership. It's designed to be called from agent hook systems (Claude Code hooks, Codex shell hooks) so messages are delivered passively into agent context windows without explicit polling.
