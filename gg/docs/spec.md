@@ -202,7 +202,7 @@ Identity is CLI-managed, not file-managed. Agents should not mutate local identi
 2. `adm task-update --task <description>` when focus changes
 3. `adm whoami` to verify resolved identity
 
-`adm register` is idempotent and acts as upsert. Until `adm task-update` is implemented, agents should re-run `adm register` with the same name and updated task.
+`adm register` is idempotent and acts as upsert. `adm task-update` is the preferred command for updating focus during an active session.
 
 ## CLI Interface
 
