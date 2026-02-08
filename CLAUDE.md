@@ -42,8 +42,14 @@ internal/cli/                 Command definitions (one file per command)
   checkclaim.go               adm check-claim - check file claims
   sync.go                     adm sync - hook delivery endpoint
   inbox.go                    adm inbox - read-only message view
+  ui.go                       adm ui - start local web dashboard
   cli_test.go                 CLI integration tests (22 tests)
   bench_test.go               Benchmarks and concurrent stress test
+internal/server/              HTTP API + embedded frontend
+  server.go                   Server struct, routing, JSON helpers
+  handlers.go                 API handlers (health, messages, agents, claims)
+  embed.go                    Embedded frontend static file serving
+  dist/                       Built React frontend assets (embedded)
 internal/db/                  SQLite database layer
   db.go                       Open, close, pragmas, migrations
   schema.go                   Table definitions and migration SQL (v1 + v2)
@@ -59,6 +65,11 @@ hooks/codex/                  Codex hook scripts
 docs/                         User-facing documentation
   hooks.md                    Hook integration guide
   operations.md               State location, troubleshooting, performance
+ui/                           Vite + React frontend (operator dashboard)
+  src/App.tsx                 Main dashboard layout
+  src/api.ts                  API client and TypeScript types
+  src/hooks.ts                Polling hook, utility functions
+  src/components/             React components
 gg/docs/
   spec.md                     Product specification
   plan.md                     Implementation plan with phases

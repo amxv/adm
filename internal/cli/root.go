@@ -35,4 +35,5 @@ func init() {
 	rootCmd.AddCommand(checkClaimCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(inboxCmd)
+	rootCmd.AddCommand(uiCmd)
 }

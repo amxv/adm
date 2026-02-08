@@ -5,14 +5,18 @@ DIST    := dist
 
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 
-.PHONY: build clean release checksums
+.PHONY: build clean release checksums ui
 
-# Build for the current platform.
-build:
+# Build frontend assets.
+ui:
+	cd ui && bun install && bun run build
+
+# Build for the current platform (includes frontend).
+build: ui
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/adm
 
 # Cross-compile for all platforms and package as tar.gz.
-release: clean
+release: clean ui
 	@mkdir -p $(DIST)
 	@for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; \
