@@ -14,10 +14,12 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 2 (in progress)
+- Current phase: Phase 4 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
+  - Phase 2 completed in commit `1fae7f0` (`sync`, `inbox`, ack-token flow, delivery-state tests)
+  - Phase 3 completed (claims uniqueness, sender validation, worktree repo root, 22 CLI integration tests)
 
 ## Scope
 
@@ -453,7 +455,26 @@ Exit criteria:
 
 Notes: Sync uses BEGIN IMMEDIATE for write safety. Full lifecycle tested: empty sync returns `{"messages":[],"batch_token":""}`, messages transition pending->offered->delivered correctly, ack-token advancement works. Inbox is read-only. Commit: `1fae7f0`.
 
-### Phase 3: Performance hardening
+### Phase 3: Correctness and Stabilization
+
+Status: completed
+
+Deliverables:
+
+- Eliminate duplicate claim rows with explicit uniqueness and deterministic upsert behavior
+- Add sender validation for `send`/`broadcast` (sender must be a registered agent)
+- Harden repo-root detection for worktree/submodule layouts (`.git` may be a file)
+- Expand CLI tests to cover Phase 1 and Phase 2 happy + negative paths
+
+Exit criteria:
+
+- Duplicate claim bug is fixed and covered by tests
+- `send`/`broadcast` fail cleanly for unknown sender/recipient combinations
+- Phase 1+2 commands have stable regression coverage
+
+Notes: Added schema v2 migration (PRAGMA user_version tracking) with UNIQUE index on claims(agent_name, path_norm) and dedup of existing rows. Claim uses proper ON CONFLICT upsert. Send/broadcast validate sender exists. FindRepoRoot accepts .git as file or directory. 22 CLI integration tests added covering register, status, send, broadcast, claim, unclaim, check-claim, sync lifecycle, inbox, and worktree detection. Removed pre-existing bench tests (will reimplement in Phase 4).
+
+### Phase 4: Performance hardening
 
 Deliverables:
 
@@ -465,7 +486,7 @@ Exit criteria:
 
 - Meets latency targets and concurrency stability
 
-### Phase 4: Hook adapters and docs
+### Phase 5: Hook adapters and docs
 
 Deliverables:
 
@@ -476,6 +497,45 @@ Deliverables:
 Exit criteria:
 
 - Both provider paths tested in real workflow
+
+### Phase 6: Private Release Packaging
+
+Deliverables:
+
+- Add cross-platform build targets for `darwin/linux` and `amd64/arm64`
+- Produce versioned release artifacts (`adm_<version>_<os>_<arch>.tar.gz`) with checksums
+- Add installer script (`scripts/install.sh`) that:
+  - detects OS/arch
+  - downloads the appropriate artifact from a private release URL
+  - verifies checksum
+  - installs `adm` into a target bin directory (`/usr/local/bin` or `$HOME/.local/bin`)
+- Define install UX:
+  - one-liner: `curl -fsSL <private-release-url>/install.sh | bash`
+  - optional version pinning via env var (for example `ADM_VERSION=v0.1.0`)
+
+Exit criteria:
+
+- Fresh machine install works via one-liner
+- Installed binary version matches requested/default version
+- Checksums are validated successfully
+
+### Phase 7: README and Operator Docs
+
+Deliverables:
+
+- Add/update `README.md` with:
+  - what ADM is and who it is for
+  - install instructions (private channel + `curl | bash` flow)
+  - quickstart (`register`, `send`, `broadcast`, `sync`, `status`)
+  - hook integration overview for Claude and Codex
+  - project layout and data location (`.agents/adm/`)
+  - troubleshooting and common errors
+- Include a short release/update section (upgrade and rollback guidance)
+
+Exit criteria:
+
+- New user can install and run first command in under 5 minutes following only `README.md`
+- README commands are validated against current CLI behavior
 
 ## Phase Completion Loop
 
@@ -543,22 +603,22 @@ Mitigation:
 - [x] Implement register/status
 - [x] Implement send/broadcast
 - [x] Implement claim/unclaim/check-claim
-- [ ] Implement sync with ack-token flow
-- [ ] Implement inbox fallback
-- [ ] Add unit/integration/concurrency tests
+- [x] Implement sync with ack-token flow
+- [x] Implement inbox fallback
+- [x] Stabilize Phase 1/2 correctness fixes (claims uniqueness, sender validation, worktree-safe repo root)
+- [x] Add unit/integration/concurrency tests (22 CLI integration tests)
 - [ ] Add benchmarks and stress script
 - [ ] Validate against performance targets
 - [ ] Document hook usage for Claude and Codex
+- [ ] Implement private release packaging and installer (`curl | bash`)
+- [ ] Add/update `README.md` for install + quickstart + integrations
 
 ## Immediate Next Step
 
-Start Phase 2 and keep the change set focused:
+Start Phase 4: Performance hardening.
 
-1. Implement `sync` with ack-token and batch-token transaction semantics
-2. Implement `inbox` as read-only (`pending` + `offered`)
-3. Add JSON response contract tests for `sync`
-4. Add carry-over Phase 1 quality fixes:
-   - prevent duplicate claims via schema/command upsert strategy
-   - add core CLI tests for Phase 1 happy/negative paths
-
-Then run build/vet/test and update phase status in this file.
+1. Reimplement benchmarks (BenchmarkSyncEmpty, BenchmarkSyncWithMessages, BenchmarkSendDirect, BenchmarkCheckClaim)
+2. Add concurrent sync stress test with correct expected delivery counts
+3. Add CLI startup overhead test
+4. Profile and tune hot paths based on measured bottlenecks
+5. Validate against latency targets

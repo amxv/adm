@@ -30,17 +30,28 @@ ADM is a CLI tool that lets coding agents (Claude, Codex, etc.) send messages to
 ## Project Map
 
 ```
-cmd/adm/main.go            Entry point
-internal/cli/               Command definitions (one file per command)
-  root.go                   Root command, subcommand wiring
-  register.go               adm register - announce agent presence
-  status.go                 adm status - list online agents
-internal/db/                SQLite database layer
-  db.go                     Open, close, pragmas, project root detection
-  schema.go                 Table definitions and migration SQL
+cmd/adm/main.go              Entry point
+internal/cli/                 Command definitions (one file per command)
+  root.go                     Root command, subcommand wiring
+  register.go                 adm register - announce agent presence
+  status.go                   adm status - list online agents
+  send.go                     adm send - direct message
+  broadcast.go                adm broadcast - message all agents
+  claim.go                    adm claim - signal file ownership
+  unclaim.go                  adm unclaim - release file ownership
+  checkclaim.go               adm check-claim - check file claims
+  sync.go                     adm sync - hook delivery endpoint
+  inbox.go                    adm inbox - read-only message view
+  cli_test.go                 CLI integration tests (22 tests)
+internal/db/                  SQLite database layer
+  db.go                       Open, close, pragmas, migrations
+  schema.go                   Table definitions and migration SQL (v1 + v2)
+internal/pathnorm/            Path normalization utilities
+  pathnorm.go                 Normalize, FindRepoRoot, Match
+  pathnorm_test.go            Path normalization tests
 gg/docs/
-  spec.md                   Product specification
-  plan.md                   Implementation plan with phases
+  spec.md                     Product specification
+  plan.md                     Implementation plan with phases
 ```
 
 ## Architecture
