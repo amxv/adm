@@ -1,0 +1,21 @@
+# Binaries
+adm
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+/vendor/
+
+# ADM runtime data
+.agents/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
