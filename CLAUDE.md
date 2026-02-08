@@ -43,12 +43,22 @@ internal/cli/                 Command definitions (one file per command)
   sync.go                     adm sync - hook delivery endpoint
   inbox.go                    adm inbox - read-only message view
   cli_test.go                 CLI integration tests (22 tests)
+  bench_test.go               Benchmarks and concurrent stress test
 internal/db/                  SQLite database layer
   db.go                       Open, close, pragmas, migrations
   schema.go                   Table definitions and migration SQL (v1 + v2)
 internal/pathnorm/            Path normalization utilities
   pathnorm.go                 Normalize, FindRepoRoot, Match
   pathnorm_test.go            Path normalization tests
+hooks/claude/                 Claude Code hook scripts
+  post-tool-sync.sh           PostToolUse: message delivery
+  pre-tool-claim-check.sh     PreToolUse: file claim warnings
+  settings.example.json       Example Claude Code hook settings
+hooks/codex/                  Codex hook scripts
+  shell-hook.sh               Shell hook for PROMPT_COMMAND integration
+docs/                         User-facing documentation
+  hooks.md                    Hook integration guide
+  operations.md               State location, troubleshooting, performance
 gg/docs/
   spec.md                     Product specification
   plan.md                     Implementation plan with phases
