@@ -33,6 +33,9 @@ set -euo pipefail
 cat > /dev/null
 
 AGENT="${ADM_AGENT:-}"
+if [[ -z "$AGENT" && -f ".agents/adm/agent" ]]; then
+    AGENT=$(cat ".agents/adm/agent" 2>/dev/null)
+fi
 if [[ -z "$AGENT" ]]; then
     exit 0
 fi
