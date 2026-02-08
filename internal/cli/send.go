@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/amxv/adm/internal/audit"
 	"github.com/amxv/adm/internal/db"
+	"github.com/amxv/adm/internal/identity"
 	"github.com/spf13/cobra"
 )
 
@@ -22,15 +24,20 @@ var (
 )
 
 func init() {
-	sendCmd.Flags().StringVar(&sendFrom, "from", "", "Sender agent name (required)")
+	sendCmd.Flags().StringVar(&sendFrom, "from", "", "Sender agent name (resolved from session if omitted)")
 	sendCmd.Flags().StringVar(&sendTo, "to", "", "Recipient agent name (required)")
 	sendCmd.Flags().StringVar(&sendMsg, "msg", "", "Message body (required)")
-	_ = sendCmd.MarkFlagRequired("from")
 	_ = sendCmd.MarkFlagRequired("to")
 	_ = sendCmd.MarkFlagRequired("msg")
 }
 
 func runSend(cmd *cobra.Command, args []string) error {
+	// Resolve sender identity.
+	sender, err := identity.Resolve(sendFrom)
+	if err != nil {
+		return fmt.Errorf("sender identity: %w", err)
+	}
+
 	d, err := db.Open()
 	if err != nil {
 		return err
@@ -39,9 +46,9 @@ func runSend(cmd *cobra.Command, args []string) error {
 
 	// Validate sender exists.
 	var senderExists int
-	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", sendFrom).Scan(&senderExists)
+	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", sender).Scan(&senderExists)
 	if err != nil {
-		return fmt.Errorf("sender %q not found (agents must register first)", sendFrom)
+		return fmt.Errorf("sender %q not found (agents must register first)", sender)
 	}
 
 	// Validate recipient exists.
@@ -63,7 +70,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 	_, err = tx.Exec(`
 		INSERT INTO messages (id, sender_name, body, kind, created_at)
 		VALUES (?, ?, ?, 'direct', ?)
-	`, msgID, sendFrom, sendMsg, now)
+	`, msgID, sender, sendMsg, now)
 	if err != nil {
 		return fmt.Errorf("insert message: %w", err)
 	}
@@ -79,6 +86,8 @@ func runSend(cmd *cobra.Command, args []string) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
+
+	audit.Log(d, sender, "send", sendTo, fmt.Sprintf("msg=%s", msgID), "ok")
 
 	fmt.Printf("sent to %s\n", sendTo)
 	return nil

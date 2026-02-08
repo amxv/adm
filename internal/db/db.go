@@ -58,7 +58,7 @@ func setPragmas(db *sql.DB) error {
 	return nil
 }
 
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 func migrate(d *sql.DB) error {
 	// Fast path: skip DDL if schema is already at the current version.
@@ -79,7 +79,12 @@ func migrate(d *sql.DB) error {
 			return fmt.Errorf("schema v2: %w", err)
 		}
 	}
-	if _, err := d.Exec("PRAGMA user_version = 2"); err != nil {
+	if version < 3 {
+		if _, err := d.Exec(migrateV3); err != nil {
+			return fmt.Errorf("schema v3: %w", err)
+		}
+	}
+	if _, err := d.Exec(fmt.Sprintf("PRAGMA user_version = %d", currentSchemaVersion)); err != nil {
 		return fmt.Errorf("set user_version: %w", err)
 	}
 	return nil

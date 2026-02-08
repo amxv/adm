@@ -72,3 +72,19 @@ DELETE FROM claims WHERE id NOT IN (
 -- Enforce uniqueness going forward.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_agent_path ON claims(agent_name, path_norm);
 `
+
+// migrateV3 adds an append-only audit log table for mutation tracking.
+const migrateV3 = `
+CREATE TABLE IF NOT EXISTS audit_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_name TEXT NOT NULL,
+    action     TEXT NOT NULL,
+    target     TEXT NOT NULL DEFAULT '',
+    detail     TEXT NOT NULL DEFAULT '',
+    outcome    TEXT NOT NULL DEFAULT 'ok',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_log(agent_name, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action, created_at);
+`

@@ -511,6 +511,101 @@ func (s *Server) handleDeliveryDebug(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// --- Audit Log ---
+
+type auditLogEntry struct {
+	ID        int    `json:"id"`
+	AgentName string `json:"agent_name"`
+	Action    string `json:"action"`
+	Target    string `json:"target"`
+	Detail    string `json:"detail"`
+	Outcome   string `json:"outcome"`
+	CreatedAt string `json:"created_at"`
+}
+
+type auditLogResponse struct {
+	Items []auditLogEntry `json:"items"`
+	Page  pageInfo        `json:"page"`
+}
+
+func (s *Server) handleAuditLog(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	limit := parseIntParam(q.Get("limit"), defaultLimit)
+	if limit < 1 {
+		limit = defaultLimit
+	}
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+	offset := parseIntParam(q.Get("offset"), 0)
+	if offset < 0 {
+		offset = 0
+	}
+
+	var conditions []string
+	var args []any
+
+	if v := q.Get("agent"); v != "" {
+		conditions = append(conditions, "agent_name = ?")
+		args = append(args, v)
+	}
+	if v := q.Get("action"); v != "" {
+		conditions = append(conditions, "action = ?")
+		args = append(args, v)
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM audit_log %s", whereClause)
+	if err := s.db.QueryRowContext(r.Context(), countQuery, args...).Scan(&total); err != nil {
+		writeError(w, http.StatusInternalServerError, "count audit: "+err.Error())
+		return
+	}
+
+	dataQuery := fmt.Sprintf(`
+		SELECT id, agent_name, action, target, detail, outcome, created_at
+		FROM audit_log %s
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	dataArgs := make([]any, len(args)+2)
+	copy(dataArgs, args)
+	dataArgs[len(args)] = limit
+	dataArgs[len(args)+1] = offset
+
+	rows, err := s.db.QueryContext(r.Context(), dataQuery, dataArgs...)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query audit: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	items := []auditLogEntry{}
+	for rows.Next() {
+		var e auditLogEntry
+		if err := rows.Scan(&e.ID, &e.AgentName, &e.Action, &e.Target, &e.Detail, &e.Outcome, &e.CreatedAt); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan audit: "+err.Error())
+			return
+		}
+		items = append(items, e)
+	}
+
+	writeJSON(w, http.StatusOK, auditLogResponse{
+		Items: items,
+		Page: pageInfo{
+			Limit:  limit,
+			Offset: offset,
+			Total:  total,
+		},
+	})
+}
+
 // --- Helpers ---
 
 func parseIntParam(s string, fallback int) int {

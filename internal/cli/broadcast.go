@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/amxv/adm/internal/audit"
 	"github.com/amxv/adm/internal/db"
+	"github.com/amxv/adm/internal/identity"
 	"github.com/spf13/cobra"
 )
 
@@ -20,13 +22,18 @@ var (
 )
 
 func init() {
-	broadcastCmd.Flags().StringVar(&broadcastFrom, "from", "", "Sender agent name (required)")
+	broadcastCmd.Flags().StringVar(&broadcastFrom, "from", "", "Sender agent name (resolved from session if omitted)")
 	broadcastCmd.Flags().StringVar(&broadcastMsg, "msg", "", "Message body (required)")
-	_ = broadcastCmd.MarkFlagRequired("from")
 	_ = broadcastCmd.MarkFlagRequired("msg")
 }
 
 func runBroadcast(cmd *cobra.Command, args []string) error {
+	// Resolve sender identity.
+	sender, err := identity.Resolve(broadcastFrom)
+	if err != nil {
+		return fmt.Errorf("sender identity: %w", err)
+	}
+
 	d, err := db.Open()
 	if err != nil {
 		return err
@@ -35,9 +42,9 @@ func runBroadcast(cmd *cobra.Command, args []string) error {
 
 	// Validate sender exists.
 	var senderExists int
-	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", broadcastFrom).Scan(&senderExists)
+	err = d.QueryRow("SELECT 1 FROM agents WHERE name = ?", sender).Scan(&senderExists)
 	if err != nil {
-		return fmt.Errorf("sender %q not found (agents must register first)", broadcastFrom)
+		return fmt.Errorf("sender %q not found (agents must register first)", sender)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -52,13 +59,13 @@ func runBroadcast(cmd *cobra.Command, args []string) error {
 	_, err = tx.Exec(`
 		INSERT INTO messages (id, sender_name, body, kind, created_at)
 		VALUES (?, ?, ?, 'broadcast', ?)
-	`, msgID, broadcastFrom, broadcastMsg, now)
+	`, msgID, sender, broadcastMsg, now)
 	if err != nil {
 		return fmt.Errorf("insert message: %w", err)
 	}
 
 	// Materialize receipts for all agents except the sender.
-	rows, err := tx.Query("SELECT name FROM agents WHERE name != ?", broadcastFrom)
+	rows, err := tx.Query("SELECT name FROM agents WHERE name != ?", sender)
 	if err != nil {
 		return fmt.Errorf("query agents: %w", err)
 	}
@@ -90,6 +97,8 @@ func runBroadcast(cmd *cobra.Command, args []string) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
+
+	audit.Log(d, sender, "broadcast", "", fmt.Sprintf("msg=%s recipients=%d", msgID, len(recipients)), "ok")
 
 	fmt.Printf("broadcast to %d agent(s)\n", len(recipients))
 	return nil

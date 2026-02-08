@@ -31,6 +31,9 @@ func testSetup(t *testing.T) string {
 	}
 	t.Cleanup(func() { os.Chdir(origDir) })
 
+	// Clear environment to prevent interference between tests.
+	os.Unsetenv("ADM_AGENT")
+
 	return tmpDir
 }
 
@@ -77,6 +80,9 @@ func resetFlags() {
 	syncAckToken = ""
 	syncFormat = "json"
 	inboxAgent = ""
+	useTask = ""
+	purgeDays = 7
+	auditLogLimit = 50
 }
 
 // ---- Register + Status ----
@@ -537,5 +543,261 @@ func TestFindRepoRootWithGitFile(t *testing.T) {
 	_, err := runCmd("register", "--name", "worktree-agent", "--task", "testing worktree")
 	if err != nil {
 		t.Fatalf("register in worktree: %v", err)
+	}
+}
+
+// ---- Use (session-based identity) ----
+
+func TestUseCreatesSession(t *testing.T) {
+	tmpDir := testSetup(t)
+
+	out, err := runCmd("use", "alice", "--task", "building auth")
+	if err != nil {
+		t.Fatalf("use: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "active: alice") {
+		t.Errorf("expected 'active: alice', got: %s", out)
+	}
+
+	// Verify session file was created.
+	sessionFile := filepath.Join(tmpDir, ".agents", "adm", "state", "session.json")
+	data, err := os.ReadFile(sessionFile)
+	if err != nil {
+		t.Fatalf("session file not created: %v", err)
+	}
+	if !strings.Contains(string(data), "alice") {
+		t.Errorf("session file missing agent name: %s", data)
+	}
+
+	// Verify agent was registered.
+	out, err = runCmd("status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "alice") {
+		t.Errorf("status should show alice: %s", out)
+	}
+}
+
+func TestUseWithoutTask(t *testing.T) {
+	testSetup(t)
+
+	out, err := runCmd("use", "bob")
+	if err != nil {
+		t.Fatalf("use: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "active: bob") {
+		t.Errorf("expected 'active: bob', got: %s", out)
+	}
+}
+
+func TestUseThenSendWithoutFrom(t *testing.T) {
+	testSetup(t)
+
+	// Set up identity via 'use'.
+	runCmd("use", "alice", "--task", "sender")
+	runCmd("register", "--name", "bob", "--task", "receiver")
+
+	// Send without --from; should resolve from session.
+	out, err := runCmd("send", "--to", "bob", "--msg", "hello from session")
+	if err != nil {
+		t.Fatalf("send without --from: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "sent to bob") {
+		t.Errorf("unexpected output: %s", out)
+	}
+
+	// Verify message arrived.
+	out, err = runCmd("sync", "--agent", "bob", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp syncResponse
+	json.Unmarshal([]byte(out), &resp)
+	if len(resp.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(resp.Messages))
+	}
+	if resp.Messages[0].From != "alice" {
+		t.Errorf("expected from=alice, got %s", resp.Messages[0].From)
+	}
+}
+
+func TestUseThenBroadcastWithoutFrom(t *testing.T) {
+	testSetup(t)
+
+	runCmd("use", "alice", "--task", "sender")
+	runCmd("register", "--name", "bob", "--task", "receiver")
+
+	out, err := runCmd("broadcast", "--msg", "team update from session")
+	if err != nil {
+		t.Fatalf("broadcast without --from: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "broadcast to 1 agent(s)") {
+		t.Errorf("unexpected output: %s", out)
+	}
+}
+
+func TestUseThenClaimWithoutAgent(t *testing.T) {
+	testSetup(t)
+
+	runCmd("use", "alice", "--task", "owner")
+
+	out, err := runCmd("claim", "src/auth")
+	if err != nil {
+		t.Fatalf("claim without --agent: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "alice") {
+		t.Errorf("expected alice in output: %s", out)
+	}
+}
+
+func TestUseThenUnclaimWithoutAgent(t *testing.T) {
+	testSetup(t)
+
+	runCmd("use", "alice", "--task", "owner")
+	runCmd("claim", "src/auth")
+
+	out, err := runCmd("unclaim", "src/auth")
+	if err != nil {
+		t.Fatalf("unclaim without --agent: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "unclaimed") {
+		t.Errorf("unexpected output: %s", out)
+	}
+}
+
+func TestUseThenSyncWithoutAgent(t *testing.T) {
+	testSetup(t)
+
+	runCmd("use", "bob", "--task", "syncing")
+	runCmd("register", "--name", "alice", "--task", "sender")
+	runCmd("send", "--from", "alice", "--to", "bob", "--msg", "sync test")
+
+	// Sync without --agent; should resolve from session.
+	out, err := runCmd("sync", "--format", "json")
+	if err != nil {
+		t.Fatalf("sync without --agent: %v\nout: %s", err, out)
+	}
+	var resp syncResponse
+	json.Unmarshal([]byte(out), &resp)
+	if len(resp.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(resp.Messages))
+	}
+	if resp.Messages[0].Body != "sync test" {
+		t.Errorf("expected 'sync test', got %s", resp.Messages[0].Body)
+	}
+}
+
+func TestSendFailsWithoutIdentity(t *testing.T) {
+	testSetup(t)
+
+	// No 'use', no --from, no ADM_AGENT, no agent file.
+	runCmd("register", "--name", "bob", "--task", "receiver")
+
+	_, err := runCmd("send", "--to", "bob", "--msg", "should fail")
+	if err == nil {
+		t.Fatal("expected error when no identity is available")
+	}
+	if !strings.Contains(err.Error(), "no agent identity found") {
+		t.Errorf("expected identity error, got: %v", err)
+	}
+}
+
+// ---- Whoami ----
+
+func TestWhoamiWithSession(t *testing.T) {
+	testSetup(t)
+
+	runCmd("use", "alice", "--task", "testing")
+
+	out, err := runCmd("whoami")
+	if err != nil {
+		t.Fatalf("whoami: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "alice") {
+		t.Errorf("expected alice, got: %s", out)
+	}
+}
+
+func TestWhoamiWithEnvVar(t *testing.T) {
+	testSetup(t)
+
+	os.Setenv("ADM_AGENT", "env-agent")
+	defer os.Unsetenv("ADM_AGENT")
+
+	out, err := runCmd("whoami")
+	if err != nil {
+		t.Fatalf("whoami: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "env-agent") {
+		t.Errorf("expected env-agent, got: %s", out)
+	}
+}
+
+func TestWhoamiFailsWithoutIdentity(t *testing.T) {
+	testSetup(t)
+
+	_, err := runCmd("whoami")
+	if err == nil {
+		t.Fatal("expected error when no identity is available")
+	}
+}
+
+// ---- Admin commands ----
+
+func TestAdminRequiresEnvVar(t *testing.T) {
+	testSetup(t)
+
+	os.Unsetenv("ADM_ADMIN")
+
+	_, err := runCmd("admin", "audit-log")
+	if err == nil {
+		t.Fatal("expected error without ADM_ADMIN=1")
+	}
+	if !strings.Contains(err.Error(), "ADM_ADMIN=1") {
+		t.Errorf("expected ADM_ADMIN error, got: %v", err)
+	}
+
+	_, err = runCmd("admin", "purge-delivered")
+	if err == nil {
+		t.Fatal("expected error without ADM_ADMIN=1")
+	}
+}
+
+func TestAdminAuditLogShowsEntries(t *testing.T) {
+	testSetup(t)
+
+	// Generate some audit entries via normal operations.
+	runCmd("use", "alice", "--task", "testing")
+	runCmd("register", "--name", "bob", "--task", "receiver")
+	runCmd("send", "--from", "alice", "--to", "bob", "--msg", "audit test")
+
+	os.Setenv("ADM_ADMIN", "1")
+	defer os.Unsetenv("ADM_ADMIN")
+
+	out, err := runCmd("admin", "audit-log", "--limit", "10")
+	if err != nil {
+		t.Fatalf("admin audit-log: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "AUDIT LOG") {
+		t.Errorf("expected AUDIT LOG header: %s", out)
+	}
+	if !strings.Contains(out, "send") {
+		t.Errorf("expected send entry in audit log: %s", out)
+	}
+}
+
+func TestAdminPurgeDelivered(t *testing.T) {
+	testSetup(t)
+
+	os.Setenv("ADM_ADMIN", "1")
+	defer os.Unsetenv("ADM_ADMIN")
+
+	out, err := runCmd("admin", "purge-delivered", "--days", "0")
+	if err != nil {
+		t.Fatalf("admin purge-delivered: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(out, "purged") {
+		t.Errorf("expected purged output: %s", out)
 	}
 }

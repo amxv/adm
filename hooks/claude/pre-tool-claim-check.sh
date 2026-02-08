@@ -34,6 +34,9 @@ set -euo pipefail
 INPUT=$(cat)
 
 AGENT="${ADM_AGENT:-}"
+if [[ -z "$AGENT" && -f ".agents/adm/state/session.json" ]]; then
+    AGENT=$(jq -r '.agent // empty' ".agents/adm/state/session.json" 2>/dev/null)
+fi
 if [[ -z "$AGENT" && -f ".agents/adm/agent" ]]; then
     AGENT=$(cat ".agents/adm/agent" 2>/dev/null)
 fi

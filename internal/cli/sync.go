@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/amxv/adm/internal/audit"
 	"github.com/amxv/adm/internal/db"
+	"github.com/amxv/adm/internal/identity"
 	"github.com/spf13/cobra"
 )
 
@@ -28,10 +30,9 @@ var (
 )
 
 func init() {
-	syncCmd.Flags().StringVar(&syncAgent, "agent", "", "Agent name (required)")
+	syncCmd.Flags().StringVar(&syncAgent, "agent", "", "Agent name (resolved from session if omitted)")
 	syncCmd.Flags().StringVar(&syncAckToken, "ack-token", "", "Previous batch token to acknowledge")
 	syncCmd.Flags().StringVar(&syncFormat, "format", "json", "Output format (json)")
-	_ = syncCmd.MarkFlagRequired("agent")
 }
 
 type syncResponse struct {
@@ -48,6 +49,12 @@ type syncMessage struct {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
+	// Resolve agent identity.
+	agent, err := identity.Resolve(syncAgent)
+	if err != nil {
+		return fmt.Errorf("agent identity: %w", err)
+	}
+
 	d, err := db.Open()
 	if err != nil {
 		return err
@@ -73,7 +80,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	// 1) Heartbeat: update last_seen_at.
 	_, err = conn.ExecContext(ctx, `
 		UPDATE agents SET last_seen_at = ?, updated_at = ? WHERE name = ?
-	`, now, now, syncAgent)
+	`, now, now, agent)
 	if err != nil {
 		return fmt.Errorf("heartbeat: %w", err)
 	}
@@ -86,7 +93,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 			WHERE recipient_name = ?
 			  AND batch_token = ?
 			  AND state = 'offered'
-		`, now, syncAgent, syncAckToken)
+		`, now, agent, syncAckToken)
 		if err != nil {
 			return fmt.Errorf("ack batch: %w", err)
 		}
@@ -101,7 +108,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		  AND r.state = 'pending'
 		ORDER BY r.created_at ASC
 		LIMIT ?
-	`, syncAgent, maxSyncBatch)
+	`, agent, maxSyncBatch)
 	if err != nil {
 		return fmt.Errorf("query pending: %w", err)
 	}
@@ -137,7 +144,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		_, err = conn.ExecContext(ctx, `
 			INSERT INTO sync_batches (token, agent_name, created_at)
 			VALUES (?, ?, ?)
-		`, batchToken, syncAgent, now)
+		`, batchToken, agent, now)
 		if err != nil {
 			return fmt.Errorf("insert batch: %w", err)
 		}
@@ -166,6 +173,15 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit: %w", err)
+	}
+
+	// Audit: log sync with summary (only for non-empty syncs).
+	if syncAckToken != "" || len(pending) > 0 {
+		detail := fmt.Sprintf("offered=%d", len(pending))
+		if syncAckToken != "" {
+			detail += fmt.Sprintf(" acked=%s", syncAckToken)
+		}
+		audit.Log(d, agent, "sync", "", detail, "ok")
 	}
 
 	// Build and output response.

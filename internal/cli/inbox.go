@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/amxv/adm/internal/db"
+	"github.com/amxv/adm/internal/identity"
 	"github.com/spf13/cobra"
 )
 
@@ -17,11 +18,16 @@ var inboxCmd = &cobra.Command{
 var inboxAgent string
 
 func init() {
-	inboxCmd.Flags().StringVar(&inboxAgent, "agent", "", "Agent name (required)")
-	_ = inboxCmd.MarkFlagRequired("agent")
+	inboxCmd.Flags().StringVar(&inboxAgent, "agent", "", "Agent name (resolved from session if omitted)")
 }
 
 func runInbox(cmd *cobra.Command, args []string) error {
+	// Resolve agent identity.
+	agent, err := identity.Resolve(inboxAgent)
+	if err != nil {
+		return fmt.Errorf("agent identity: %w", err)
+	}
+
 	d, err := db.Open()
 	if err != nil {
 		return err
@@ -35,7 +41,7 @@ func runInbox(cmd *cobra.Command, args []string) error {
 		WHERE r.recipient_name = ?
 		  AND r.state IN ('pending', 'offered')
 		ORDER BY r.created_at ASC
-	`, inboxAgent)
+	`, agent)
 	if err != nil {
 		return fmt.Errorf("query inbox: %w", err)
 	}

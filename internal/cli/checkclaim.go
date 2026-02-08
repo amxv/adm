@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/amxv/adm/internal/db"
+	"github.com/amxv/adm/internal/identity"
 	"github.com/amxv/adm/internal/pathnorm"
 	"github.com/spf13/cobra"
 )
@@ -24,9 +25,8 @@ var (
 
 func init() {
 	checkClaimCmd.Flags().StringVar(&checkClaimFile, "file", "", "File path to check (required)")
-	checkClaimCmd.Flags().StringVar(&checkClaimAgent, "agent", "", "Calling agent name (required)")
+	checkClaimCmd.Flags().StringVar(&checkClaimAgent, "agent", "", "Calling agent name (resolved from session if omitted)")
 	_ = checkClaimCmd.MarkFlagRequired("file")
-	_ = checkClaimCmd.MarkFlagRequired("agent")
 }
 
 type claimWarning struct {
@@ -37,6 +37,12 @@ type claimWarning struct {
 }
 
 func runCheckClaim(cmd *cobra.Command, args []string) error {
+	// Resolve agent identity.
+	agent, err := identity.Resolve(checkClaimAgent)
+	if err != nil {
+		return fmt.Errorf("agent identity: %w", err)
+	}
+
 	repoRoot, err := pathnorm.FindRepoRoot()
 	if err != nil {
 		return fmt.Errorf("find repo root: %w", err)
@@ -58,7 +64,7 @@ func runCheckClaim(cmd *cobra.Command, args []string) error {
 		SELECT agent_name, path_pattern, path_norm
 		FROM claims
 		WHERE agent_name != ?
-	`, checkClaimAgent)
+	`, agent)
 	if err != nil {
 		return fmt.Errorf("query claims: %w", err)
 	}

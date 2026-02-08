@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/amxv/adm/internal/audit"
 	"github.com/amxv/adm/internal/db"
 	"github.com/spf13/cobra"
 )
@@ -49,6 +50,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 
 	rows, _ := result.RowsAffected()
 	if rows > 0 {
+		audit.Log(d, registerName, "register", "", registerTask, "ok")
 		fmt.Printf("registered: %s\n", registerName)
 	}
 	return nil

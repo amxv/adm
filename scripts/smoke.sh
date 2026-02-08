@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runtime smoke test for ADM CLI.
 # Runs all core commands in an isolated temp workspace with a .git marker.
-# Phase 7: Runtime Validation Gate
+# Phase 7+11: Runtime Validation Gate + Session Identity
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,8 +77,13 @@ trap '/bin/rm -rf "$TMP_DIR"' EXIT
 # Create isolated workspace with .git marker
 mkdir -p "$TMP_DIR/.git"
 mkdir -p "$TMP_DIR/src/auth"
+mkdir -p "$TMP_DIR/src/session"
 cp "$ROOT_DIR/adm" "$TMP_DIR/adm"
 cd "$TMP_DIR"
+
+# Clear environment to prevent interference.
+unset ADM_AGENT 2>/dev/null || true
+unset ADM_ADMIN 2>/dev/null || true
 
 ADM="./adm"
 echo "Workspace: $TMP_DIR"
@@ -87,7 +92,7 @@ echo ""
 # ============================================================
 # 1. Register
 # ============================================================
-echo "[1/7] Register"
+echo "[1/9] Register"
 
 out=$($ADM register --name alice --task "building auth module")
 assert_contains "$out" "registered" "register alice"
@@ -108,7 +113,7 @@ echo ""
 # ============================================================
 # 2. Status
 # ============================================================
-echo "[2/7] Status"
+echo "[2/9] Status"
 
 out=$($ADM status)
 assert_contains "$out" "alice" "status shows alice"
@@ -123,7 +128,7 @@ echo ""
 # ============================================================
 # 3. Send + Sync (delivery lifecycle)
 # ============================================================
-echo "[3/7] Send + Sync delivery lifecycle"
+echo "[3/9] Send + Sync delivery lifecycle"
 
 # Send direct message
 out=$($ADM send --from alice --to bob --msg "hey bob, check auth module")
@@ -169,7 +174,7 @@ echo ""
 # ============================================================
 # 4. Broadcast
 # ============================================================
-echo "[4/7] Broadcast"
+echo "[4/9] Broadcast"
 
 $ADM broadcast --from alice --msg "team standup in 5 min" >/dev/null
 
@@ -197,7 +202,7 @@ echo ""
 # ============================================================
 # 5. Claim / Check-Claim / Unclaim
 # ============================================================
-echo "[5/7] Claim / Check-Claim / Unclaim"
+echo "[5/9] Claim / Check-Claim / Unclaim"
 
 $ADM claim --agent alice "src/auth/*.go" >/dev/null
 
@@ -251,7 +256,7 @@ echo ""
 # ============================================================
 # 6. Inbox (read-only)
 # ============================================================
-echo "[6/7] Inbox (read-only)"
+echo "[6/9] Inbox (read-only)"
 
 # Send a fresh message to carol
 $ADM send --from bob --to carol --msg "carol, approve the deploy" >/dev/null
@@ -281,7 +286,7 @@ echo ""
 # ============================================================
 # 7. Version
 # ============================================================
-echo "[7/7] Version"
+echo "[7/9] Version"
 
 ver_out=$($ADM --version 2>&1 || $ADM version 2>&1 || echo "no-version")
 if [[ "$ver_out" != "no-version" ]]; then
@@ -290,6 +295,96 @@ if [[ "$ver_out" != "no-version" ]]; then
 else
   echo "  SKIP: version command not available"
 fi
+
+echo "  $PASS passed"
+echo ""
+
+# ============================================================
+# 8. Session-based identity (adm use)
+# ============================================================
+echo "[8/9] Session-based identity"
+
+# Set identity
+out=$($ADM use dave --task "session testing")
+assert_contains "$out" "active: dave" "use sets identity"
+
+# Session file created
+if [[ -f ".agents/adm/state/session.json" ]]; then
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: session file not created" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Verify session file contains agent name
+session_agent=$(jq -r '.agent' ".agents/adm/state/session.json" 2>/dev/null)
+assert_eq "$session_agent" "dave" "session file contains correct agent"
+
+# Whoami shows current identity
+whoami_out=$($ADM whoami)
+assert_eq "$(echo "$whoami_out" | tr -d '\n')" "dave" "whoami shows dave"
+
+# Send without --from (uses session identity)
+$ADM register --name eve --task "receiver" >/dev/null
+out=$($ADM send --to eve --msg "hello from session")
+assert_contains "$out" "sent to eve" "send works without --from via session"
+
+# Broadcast without --from
+out=$($ADM broadcast --msg "session broadcast")
+assert_contains "$out" "broadcast to" "broadcast works without --from via session"
+
+# Claim without --agent
+$ADM claim "src/session/*.go" >/dev/null
+check_out=$($ADM check-claim --file src/session/main.go --agent eve)
+if echo "$check_out" | jq -e '.claimed == true and .owner == "dave"' >/dev/null 2>&1; then
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: claim via session identity should show dave as owner" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Sync without --agent
+$ADM send --from eve --to dave --msg "sync session test" >/dev/null
+sync_dave=$($ADM sync --format json)
+sd_count=$(echo "$sync_dave" | jq '.messages | length')
+assert_eq "$sd_count" "1" "sync without --agent delivers messages"
+
+# Inbox without --agent
+$ADM send --from eve --to dave --msg "inbox session test" >/dev/null
+inbox_dave=$($ADM inbox)
+assert_contains "$inbox_dave" "inbox session test" "inbox without --agent shows messages"
+
+# Unclaim without --agent
+$ADM unclaim "src/session/*.go" >/dev/null
+check_after=$($ADM check-claim --file src/session/main.go --agent eve)
+if echo "$check_after" | jq -e '.claimed == false' >/dev/null 2>&1; then
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: unclaim via session should clear the claim" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+echo "  $PASS passed"
+echo ""
+
+# ============================================================
+# 9. Admin commands + audit log
+# ============================================================
+echo "[9/9] Admin commands + audit log"
+
+# Admin commands should fail without ADM_ADMIN=1
+assert_exit_nonzero "$ADM admin audit-log" "admin audit-log requires ADM_ADMIN=1"
+assert_exit_nonzero "$ADM admin purge-delivered" "admin purge-delivered requires ADM_ADMIN=1"
+
+# Admin commands work with ADM_ADMIN=1
+out=$(ADM_ADMIN=1 $ADM admin audit-log --limit 50)
+# Should have entries from the operations above
+assert_contains "$out" "AUDIT LOG" "audit log shows header"
+assert_contains "$out" "send" "audit log contains send entries"
+
+# Purge (with --days 0 to test the command works; no old messages to purge)
+out=$(ADM_ADMIN=1 $ADM admin purge-delivered --days 0)
+assert_contains "$out" "purged" "purge-delivered executes"
 
 echo "  $PASS passed"
 echo ""

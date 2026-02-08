@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/amxv/adm/internal/audit"
 	"github.com/amxv/adm/internal/db"
+	"github.com/amxv/adm/internal/identity"
 	"github.com/amxv/adm/internal/pathnorm"
 	"github.com/spf13/cobra"
 )
@@ -20,12 +22,17 @@ var claimCmd = &cobra.Command{
 var claimAgent string
 
 func init() {
-	claimCmd.Flags().StringVar(&claimAgent, "agent", "", "Agent name (required)")
-	_ = claimCmd.MarkFlagRequired("agent")
+	claimCmd.Flags().StringVar(&claimAgent, "agent", "", "Agent name (resolved from session if omitted)")
 }
 
 func runClaim(cmd *cobra.Command, args []string) error {
 	pathPattern := args[0]
+
+	// Resolve agent identity.
+	agent, err := identity.Resolve(claimAgent)
+	if err != nil {
+		return fmt.Errorf("agent identity: %w", err)
+	}
 
 	repoRoot, err := pathnorm.FindRepoRoot()
 	if err != nil {
@@ -51,11 +58,13 @@ func runClaim(cmd *cobra.Command, args []string) error {
 		ON CONFLICT(agent_name, path_norm) DO UPDATE SET
 			path_pattern = excluded.path_pattern,
 			updated_at = excluded.updated_at
-	`, claimAgent, pathPattern, norm, now, now)
+	`, agent, pathPattern, norm, now, now)
 	if err != nil {
 		return fmt.Errorf("upsert claim: %w", err)
 	}
 
-	fmt.Printf("claimed: %s -> %s\n", claimAgent, norm)
+	audit.Log(d, agent, "claim", norm, pathPattern, "ok")
+
+	fmt.Printf("claimed: %s -> %s\n", agent, norm)
 	return nil
 }
