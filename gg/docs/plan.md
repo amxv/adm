@@ -14,9 +14,10 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 1 (in progress)
+- Current phase: Phase 2 (in progress)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
+  - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
 
 ## Scope
 
@@ -436,6 +437,8 @@ Notes: Added `--from` flag to send/broadcast for sender identity. Extracted path
 
 ### Phase 2: Sync and delivery semantics
 
+Status: completed
+
 Deliverables:
 
 - `sync` transaction with ack-token and batch-token
@@ -447,6 +450,8 @@ Exit criteria:
 
 - End-to-end hook simulation passes
 - Duplicate-safe failure scenario verified
+
+Notes: Sync uses BEGIN IMMEDIATE for write safety. Full lifecycle tested: empty sync returns `{"messages":[],"batch_token":""}`, messages transition pending->offered->delivered correctly, ack-token advancement works. Inbox is read-only. Commit: `1fae7f0`.
 
 ### Phase 3: Performance hardening
 
@@ -536,8 +541,8 @@ Mitigation:
 - [x] Initialize Go module and CLI skeleton
 - [x] Implement DB bootstrap + migration v1
 - [x] Implement register/status
-- [ ] Implement send/broadcast
-- [ ] Implement claim/unclaim/check-claim
+- [x] Implement send/broadcast
+- [x] Implement claim/unclaim/check-claim
 - [ ] Implement sync with ack-token flow
 - [ ] Implement inbox fallback
 - [ ] Add unit/integration/concurrency tests
@@ -547,11 +552,13 @@ Mitigation:
 
 ## Immediate Next Step
 
-Continue Phase 1 and keep the change set focused:
+Start Phase 2 and keep the change set focused:
 
-1. Implement `send` with strict recipient validation
-2. Implement `broadcast` with materialized receipts (exclude sender)
-3. Implement `claim`, `unclaim`, and `check-claim`
-4. Add happy-path tests for all Phase 1 commands
+1. Implement `sync` with ack-token and batch-token transaction semantics
+2. Implement `inbox` as read-only (`pending` + `offered`)
+3. Add JSON response contract tests for `sync`
+4. Add carry-over Phase 1 quality fixes:
+   - prevent duplicate claims via schema/command upsert strategy
+   - add core CLI tests for Phase 1 happy/negative paths
 
 Then run build/vet/test and update phase status in this file.
