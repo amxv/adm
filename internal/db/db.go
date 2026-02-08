@@ -1,0 +1,84 @@
+package db
+
+import (
+	"database/sql"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	_ "modernc.org/sqlite"
+)
+
+// Open finds the project root, ensures the .agents/adm/ directory exists,
+// opens the SQLite database, sets pragmas, and runs migrations.
+func Open() (*sql.DB, error) {
+	root, err := findProjectRoot()
+	if err != nil {
+		return nil, fmt.Errorf("find project root: %w", err)
+	}
+
+	dir := filepath.Join(root, ".agents", "adm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create data dir: %w", err)
+	}
+
+	dbPath := filepath.Join(dir, "adm.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	if err := setPragmas(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set pragmas: %w", err)
+	}
+
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+
+	return db, nil
+}
+
+func setPragmas(db *sql.DB) error {
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA synchronous=NORMAL",
+		"PRAGMA busy_timeout=5000",
+		"PRAGMA foreign_keys=ON",
+		"PRAGMA temp_store=MEMORY",
+	}
+	for _, p := range pragmas {
+		if _, err := db.Exec(p); err != nil {
+			return fmt.Errorf("%s: %w", p, err)
+		}
+	}
+	return nil
+}
+
+func migrate(db *sql.DB) error {
+	_, err := db.Exec(schemaV1)
+	return err
+}
+
+// findProjectRoot walks upward from the current working directory looking
+// for a .git directory. Falls back to CWD if none is found.
+func findProjectRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		if info, err := os.Stat(filepath.Join(dir, ".git")); err == nil && info.IsDir() {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root, fall back to CWD.
+			return os.Getwd()
+		}
+		dir = parent
+	}
+}

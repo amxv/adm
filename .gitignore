@@ -1,5 +1,5 @@
 # Binaries
-adm
+/adm
 *.exe
 *.dll
 *.so
