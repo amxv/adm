@@ -2,7 +2,6 @@ package cli
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,22 +55,23 @@ func runSync(cmd *cobra.Command, args []string) error {
 	defer d.Close()
 
 	now := time.Now().UTC().Format(time.RFC3339)
+	ctx := cmd.Context()
 
-	// Use BEGIN IMMEDIATE for write transaction to avoid SQLITE_BUSY on commit.
-	tx, err := d.BeginTx(cmd.Context(), &sql.TxOptions{})
+	// Use a raw connection with BEGIN IMMEDIATE to acquire a RESERVED lock
+	// upfront, avoiding lock-promotion failures under concurrent writers.
+	conn, err := d.Conn(ctx)
 	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
+		return fmt.Errorf("acquire connection: %w", err)
 	}
-	defer tx.Rollback()
+	defer conn.Close()
 
-	// Force immediate lock acquisition.
-	_, err = tx.Exec("SELECT 1 FROM agents LIMIT 0")
-	if err != nil {
-		return fmt.Errorf("acquire lock: %w", err)
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("begin immediate: %w", err)
 	}
+	defer conn.ExecContext(ctx, "ROLLBACK") // no-op after successful commit
 
 	// 1) Heartbeat: update last_seen_at.
-	_, err = tx.Exec(`
+	_, err = conn.ExecContext(ctx, `
 		UPDATE agents SET last_seen_at = ?, updated_at = ? WHERE name = ?
 	`, now, now, syncAgent)
 	if err != nil {
@@ -80,7 +80,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	// 2) Acknowledge previous batch if token provided.
 	if syncAckToken != "" {
-		_, err = tx.Exec(`
+		_, err = conn.ExecContext(ctx, `
 			UPDATE message_receipts
 			SET state = 'delivered', delivered_at = ?
 			WHERE recipient_name = ?
@@ -93,7 +93,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// 3) Select next pending messages.
-	rows, err := tx.Query(`
+	rows, err := conn.QueryContext(ctx, `
 		SELECT r.id, m.id, m.sender_name, r.recipient_name, m.body, m.created_at
 		FROM message_receipts r
 		JOIN messages m ON m.id = r.message_id
@@ -134,7 +134,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if len(pending) > 0 {
 		batchToken = generateBatchToken()
 
-		_, err = tx.Exec(`
+		_, err = conn.ExecContext(ctx, `
 			INSERT INTO sync_batches (token, agent_name, created_at)
 			VALUES (?, ?, ?)
 		`, batchToken, syncAgent, now)
@@ -158,13 +158,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 			WHERE id IN (%s)
 		`, strings.Join(ids, ","))
 
-		_, err = tx.Exec(query, ifaces...)
+		_, err = conn.ExecContext(ctx, query, ifaces...)
 		if err != nil {
 			return fmt.Errorf("mark offered: %w", err)
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
 
