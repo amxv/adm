@@ -14,12 +14,13 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 4 (next)
+- Current phase: Phase 5 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
   - Phase 2 completed in commit `1fae7f0` (`sync`, `inbox`, ack-token flow, delivery-state tests)
   - Phase 3 completed (claims uniqueness, sender validation, worktree repo root, 22 CLI integration tests)
+  - Phase 4 completed in commit `9c5a767` (benchmarks, stress test, migration fast path, BEGIN IMMEDIATE)
 
 ## Scope
 
@@ -476,6 +477,8 @@ Notes: Added schema v2 migration (PRAGMA user_version tracking) with UNIQUE inde
 
 ### Phase 4: Performance hardening
 
+Status: completed
+
 Deliverables:
 
 - Benchmarks + stress harness
@@ -485,6 +488,8 @@ Deliverables:
 Exit criteria:
 
 - Meets latency targets and concurrency stability
+
+Notes: Migration fast path skips DDL when schema is current. Sync uses proper BEGIN IMMEDIATE via *sql.Conn. Go benchmarks (5 benchmarks) and concurrent stress test (24 agents, 120 messages) added. Latency report test validates p50/p95. All targets met: sync empty p50=1.0ms, sync w/msg p50=1.2ms, send p50=1.1ms, check-claim p50=0.8ms. Commit: `9c5a767`.
 
 ### Phase 5: Hook adapters and docs
 
@@ -536,6 +541,42 @@ Exit criteria:
 
 - New user can install and run first command in under 5 minutes following only `README.md`
 - README commands are validated against current CLI behavior
+
+### Phase 8: Web UI MVP (Vite + React)
+
+Deliverables:
+
+- Create lightweight web UI using `Vite + React`
+- Add a minimal HTTP API layer in `adm` for UI reads (local-only by default)
+- Build an operator dashboard with:
+  - global message feed (direct + broadcast)
+  - agent status panel (online/stale + task + last seen)
+  - claims panel
+  - message detail view
+- Add search and filtering:
+  - free-text search in message body
+  - filters by `from`, `to`, `kind`, `state`, and time range
+- Add pagination/virtualized list behavior for large message volumes
+
+Exit criteria:
+
+- Operator can open UI and see all messages with usable latency
+- Search/filter operations work against real project data
+- UI runs locally without additional infrastructure
+
+### Phase 9: Web UI Enhancements and Usability
+
+Deliverables:
+
+- Saved filters/presets for common workflows
+- Conflict radar view (claim overlap and coordination hotspots)
+- Delivery debug panel (`pending`/`offered`/`delivered` counts and recent batch tokens)
+- Basic UI polish for desktop and mobile layouts
+
+Exit criteria:
+
+- UI is usable for day-to-day multi-agent monitoring
+- Key debugging tasks can be completed without SQL/manual log inspection
 
 ## Phase Completion Loop
 
@@ -612,6 +653,8 @@ Mitigation:
 - [ ] Document hook usage for Claude and Codex
 - [ ] Implement private release packaging and installer (`curl | bash`)
 - [ ] Add/update `README.md` for install + quickstart + integrations
+- [ ] Build Web UI MVP using Vite + React (messages, search, filters)
+- [ ] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
 
 ## Immediate Next Step
 

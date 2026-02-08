@@ -6,7 +6,7 @@ Multiple coding agents working on the same codebase have no awareness of each ot
 
 ## The Solution
 
-A lightweight CLI tool backed by SQLite that enables bidirectional messaging between agents. Integration with agent hook systems makes message delivery passive - agents receive messages automatically as context injections on their tool calls, without any explicit polling or distraction from their current task.
+A lightweight CLI tool backed by SQLite that enables bidirectional messaging between agents. Integration with agent hook systems makes message delivery passive - agents receive messages automatically as context injections on their tool calls, without any explicit polling or distraction from their current task. A lightweight operator web UI (`adm ui`) provides visibility into all inter-agent communication with search and filtering.
 
 ## Core Concepts
 
@@ -16,13 +16,17 @@ A lightweight CLI tool backed by SQLite that enables bidirectional messaging bet
 
 **File claims** are soft signals. An agent declares "I'm working on these files." If another agent attempts to edit a claimed file, they receive a warning injected into their context. The edit is not blocked. It's coordination through awareness, not enforcement.
 
+**Operators** are humans coordinating multiple agents. Operators need a single place to inspect messages, search history, and spot ownership conflicts without writing SQL or tailing logs.
+
 ## Architecture
 
-**One binary.** A single Go CLI (`adm`) that handles everything - registration, messaging, file claims, and the sync/check operations that hooks call. No daemon. No server. No background processes.
+**One binary.** A single Go CLI (`adm`) that handles everything - registration, messaging, file claims, sync/check operations, and a local web UI mode. No persistent daemon. No always-on server. No background processes.
 
 **SQLite as the only dependency.** Single file, handles concurrent access, sub-millisecond reads. The database lives at a known location scoped to the project (e.g., `.agents/adm/adm.db` at the project root).
 
 **`adm sync` is the central delivery mechanism.** It's the command that hooks call to deliver messages. It checks for unread messages for the calling agent and returns them as structured output. Any agent integration (Claude Code hooks, Codex bash hooks, or any other agent) calls `adm sync` through whatever hook mechanism is available to them.
+
+**`adm ui` is the visibility mechanism.** It starts a local HTTP server (foreground command) to serve a lightweight React UI and read-only API against the same SQLite database.
 
 ## Delivery Semantics (V1)
 
@@ -65,12 +69,135 @@ Codex is primarily bash-driven - file searching, reading, and writing happen thr
 
 Any agent with terminal access can use the `adm` CLI directly. Agents without hook systems can call `adm inbox` to read messages explicitly. The core system is agent-agnostic; hooks are adapters.
 
+## Web UI (`adm ui`) Specification
+
+### Purpose
+
+The web UI is an operator-facing dashboard for monitoring multi-agent collaboration in real time. It is not required for agent delivery semantics and does not replace hooks. It exists to improve human observability and coordination.
+
+### Runtime and Safety Model
+
+- `adm ui` runs in the foreground; stopping the process stops the UI.
+- Default bind: `127.0.0.1:7777`.
+- Local-first by default: no remote exposure unless host is explicitly changed.
+- V1 UI is read-only. All write actions remain CLI-driven.
+
+### Command Contract
+
+```bash
+adm ui --host 127.0.0.1 --port 7777
+adm ui --host 127.0.0.1 --port 7777 --open
+```
+
+Flags:
+
+- `--host` (default `127.0.0.1`): bind host/IP
+- `--port` (default `7777`): bind port
+- `--open` (default `false`): auto-open browser after server start
+
+### Required UI Views (V1)
+
+1. Message feed:
+   - Unified stream of direct and broadcast messages
+   - Columns: timestamp, from, recipients, kind, delivery summary, body preview
+   - Click row to open full detail
+2. Agent status panel:
+   - name, task, `online|stale`, `last_seen_at`
+   - one-click feed filtering by sender/recipient
+3. Claims panel:
+   - active claims grouped by agent
+   - searchable by path/pattern
+4. Message detail view:
+   - full message body
+   - message ID
+   - created timestamp
+   - receipt-state breakdown (`pending`, `offered`, `delivered`)
+
+### Search and Filtering (V1)
+
+Message feed supports:
+
+- text query over body (`q`)
+- sender filter (`from`)
+- recipient filter (`to`)
+- kind filter (`direct|broadcast`)
+- state filter (`pending|offered|delivered`)
+- time range (`from_ts`, `to_ts`)
+- pagination (`limit`, `offset`)
+
+Default sort:
+
+- `created_at DESC`
+
+### HTTP API for UI (V1)
+
+All endpoints are local and read-only.
+
+1. `GET /api/v1/health`
+   - returns service health and build version
+2. `GET /api/v1/messages`
+   - query params: `q`, `from`, `to`, `kind`, `state`, `from_ts`, `to_ts`, `limit`, `offset`
+   - returns paginated message rows with delivery summary
+3. `GET /api/v1/messages/:id`
+   - returns full message + per-recipient state rows
+4. `GET /api/v1/agents`
+   - returns agent list with computed online/stale status
+5. `GET /api/v1/claims`
+   - returns active claims
+
+Example `GET /api/v1/messages` response:
+
+```json
+{
+  "items": [
+    {
+      "id": "msg_123",
+      "from": "agent-a",
+      "kind": "direct",
+      "body": "I am editing gg/docs/spec.md.",
+      "created_at": "2026-02-08T18:10:00Z",
+      "recipients": ["agent-b"],
+      "delivery": {
+        "pending": 0,
+        "offered": 1,
+        "delivered": 0,
+        "total": 1
+      }
+    }
+  ],
+  "page": {
+    "limit": 50,
+    "offset": 0,
+    "total": 1
+  }
+}
+```
+
+### UI Performance and Query Constraints
+
+- Default `limit=50`; enforce max `limit=500`.
+- Use indexed query paths for message list filtering.
+- UI should remain responsive on projects with thousands of messages.
+- Prefer server-side pagination over loading full history.
+
+### Stack Constraint (V1)
+
+- Frontend: `Vite + React`
+- Backend: `adm` binary serves API and static assets
+- No external service dependencies required for local use
+
+### Non-Goals (V1 UI)
+
+- Not a task planner or workflow engine
+- Not a replacement for CLI/hook operations
+- Not a remote multi-tenant dashboard
+
 ## CLI Interface
 
 ```
 adm register --name <name> --task <description>    # announce presence
-adm send --to <name> --msg <text>                  # direct message
-adm broadcast --msg <text>                         # message all agents
+adm send --from <name> --to <name> --msg <text>    # direct message
+adm broadcast --from <name> --msg <text>           # message all agents
 adm inbox --agent <name>                           # read messages (for agents without hooks)
 adm claim --agent <name> <path-pattern>            # signal file ownership
 adm unclaim --agent <name> <path-pattern>          # release file ownership
@@ -78,7 +205,15 @@ adm status                                         # who's online, what they're 
 adm sync --agent <name> --format json              # called by hooks; returns messages + batch_token
 adm sync --agent <name> --ack-token <token> --format json
 adm check-claim --file <path> --agent <name>       # called by hooks; checks file claims
+adm ui --host 127.0.0.1 --port 7777                # start local operator web UI
 ```
+
+Command behavior notes:
+
+- `send`: sender and recipient must both be registered agents; otherwise command fails.
+- `broadcast`: sender must be a registered agent; sender is excluded from recipients in V1.
+- `inbox`: read-only view; does not mutate message delivery state.
+- `ui`: read-only operator interface in V1.
 
 Example `adm sync` response:
 
@@ -110,4 +245,4 @@ Example `adm sync` response:
 - Not a task management system (that's a separate concern)
 - Not a file locking mechanism (claims are signals, not locks)
 - Not tied to any specific agent (CLI is universal; hooks are agent-specific adapters)
-- Not a daemon or service (stateless CLI + SQLite)
+- Not an always-on daemon or service (stateless CLI + SQLite; `adm ui` runs only while invoked)
