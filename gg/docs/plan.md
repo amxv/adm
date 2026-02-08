@@ -14,7 +14,7 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 8 (next)
+- Current phase: Phase 9 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
@@ -24,6 +24,7 @@ The plan is intentionally staged so we can prove performance early, before addin
   - Phase 5 completed in commit `c1050d6` (hooks, smoke tests, operational docs, live E2E validation)
   - Phase 6 completed in commit `01acafe` (Makefile, installer, version injection, cross-platform builds)
   - Phase 7 completed in commit `517faab` (runtime smoke script, 30 CLI + 6 hook assertions, self-verified)
+  - Phase 8 completed in commit `ccf6f37` (README with install, quickstart, hooks, troubleshooting, upgrade)
 
 ## Scope
 
@@ -561,6 +562,8 @@ Notes: Expanded `scripts/smoke.sh` into a comprehensive 30-assertion CLI smoke t
 
 ### Phase 8: README and Operator Docs
 
+Status: completed
+
 Deliverables:
 
 - Add/update `README.md` with:
@@ -576,6 +579,8 @@ Exit criteria:
 
 - New user can install and run first command in under 5 minutes following only `README.md`
 - README commands are validated against current CLI behavior
+
+Notes: Created `README.md` (310 lines) covering: what ADM is, install from source and release (`curl | bash`), quickstart for all commands (register, status, send, broadcast, inbox, claim/unclaim/check-claim), message delivery lifecycle, hook integration for Claude Code (PostToolUse + PreToolUse) and Codex (shell hook), identity switching, project layout, data location, troubleshooting (4 scenarios), upgrade/rollback, performance table, and development commands. All README commands validated in isolated temp workspace against live CLI. Commit: `ccf6f37`.
 
 ### Phase 9: Web UI MVP (Vite + React)
 
@@ -708,15 +713,15 @@ Mitigation:
 - [x] Document hook usage for Claude and Codex
 - [x] Implement private release packaging and installer (`curl | bash`)
 - [x] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
-- [ ] Add/update `README.md` for install + quickstart + integrations
+- [x] Add/update `README.md` for install + quickstart + integrations
 - [ ] Build Web UI MVP using Vite + React (messages, search, filters)
 - [ ] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
 - [ ] Implement session-based identity hardening and mutation audit trail
 
 ## Immediate Next Step
 
-Start Phase 8: README and Operator Docs.
+Start Phase 9: Web UI MVP (Vite + React).
 
-1. Add/update `README.md` with install, quickstart, hook integration, project layout, troubleshooting
-2. Validate README commands against current CLI behavior
-3. Start Phase 9: Web UI MVP
+1. Add minimal HTTP API layer in `adm` for UI reads (local-only)
+2. Build operator dashboard with message feed, agent status, claims panel
+3. Add search/filtering and pagination
