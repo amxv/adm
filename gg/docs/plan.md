@@ -648,8 +648,8 @@ Mitigation:
 - [x] Implement inbox fallback
 - [x] Stabilize Phase 1/2 correctness fixes (claims uniqueness, sender validation, worktree-safe repo root)
 - [x] Add unit/integration/concurrency tests (22 CLI integration tests)
-- [ ] Add benchmarks and stress script
-- [ ] Validate against performance targets
+- [x] Add benchmarks and stress script
+- [x] Validate against performance targets
 - [ ] Document hook usage for Claude and Codex
 - [ ] Implement private release packaging and installer (`curl | bash`)
 - [ ] Add/update `README.md` for install + quickstart + integrations
@@ -658,10 +658,8 @@ Mitigation:
 
 ## Immediate Next Step
 
-Start Phase 4: Performance hardening.
+Start Phase 5: Hook adapters and docs.
 
-1. Reimplement benchmarks (BenchmarkSyncEmpty, BenchmarkSyncWithMessages, BenchmarkSendDirect, BenchmarkCheckClaim)
-2. Add concurrent sync stress test with correct expected delivery counts
-3. Add CLI startup overhead test
-4. Profile and tune hot paths based on measured bottlenecks
-5. Validate against latency targets
+1. Create Claude Code hook example script (PostToolUse + PreToolUse)
+2. Create Codex shell hook integration notes
+3. Add operational docs (state location, troubleshooting)
