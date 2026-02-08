@@ -14,7 +14,7 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 5 (next)
+- Current phase: Phase 6 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
@@ -493,6 +493,8 @@ Notes: Migration fast path skips DDL when schema is current. Sync uses proper BE
 
 ### Phase 5: Hook adapters and docs
 
+Status: completed
+
 Deliverables:
 
 - Claude hook example script
@@ -502,6 +504,8 @@ Deliverables:
 Exit criteria:
 
 - Both provider paths tested in real workflow
+
+Notes: Claude Code hooks: PostToolUse (post-tool-sync.sh) for message delivery, PreToolUse (pre-tool-claim-check.sh) for file claim warnings, with example settings.json. Codex shell hook (shell-hook.sh) with dual mode (shim + interactive), repo-root discovery, adm binary fallback, structured A2A_MSG output, and PROMPT_COMMAND integration. Hook guide (docs/hooks.md) and operations guide (docs/operations.md) added. E2E tested by Codex agent. Commit: `c1050d6`.
 
 ### Phase 6: Private Release Packaging
 
@@ -670,7 +674,7 @@ Mitigation:
 - [x] Add unit/integration/concurrency tests (22 CLI integration tests)
 - [x] Add benchmarks and stress script
 - [x] Validate against performance targets
-- [ ] Document hook usage for Claude and Codex
+- [x] Document hook usage for Claude and Codex
 - [ ] Implement private release packaging and installer (`curl | bash`)
 - [ ] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
 - [ ] Add/update `README.md` for install + quickstart + integrations
@@ -679,8 +683,8 @@ Mitigation:
 
 ## Immediate Next Step
 
-Start Phase 5: Hook adapters and docs.
+Start Phase 6: Private release packaging.
 
-1. Create Claude Code hook example script (PostToolUse + PreToolUse)
-2. Create Codex shell hook integration notes
-3. Add operational docs (state location, troubleshooting)
+1. Add cross-platform build targets (darwin/linux, amd64/arm64)
+2. Create Makefile or build script for versioned release artifacts
+3. Add installer script (scripts/install.sh) with OS/arch detection and checksum verification
