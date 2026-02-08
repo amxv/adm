@@ -524,7 +524,27 @@ Exit criteria:
 - Installed binary version matches requested/default version
 - Checksums are validated successfully
 
-### Phase 7: README and Operator Docs
+### Phase 7: Runtime Validation Gate (Self-Verified)
+
+Deliverables:
+
+- Add a repeatable runtime smoke script at `scripts/smoke.sh` to validate real behavior, not only unit tests.
+- Smoke script must run in an isolated temp workspace with a `.git` marker and include:
+  - fresh install path using release artifact (or installer flow when available)
+  - `register` / `send` / `sync` end-to-end delivery
+  - `claim` / `check-claim` / `unclaim` flow
+  - `inbox` read-only verification
+  - `status` liveness output check
+- Add a release-validation command sequence in docs (copy/paste runnable).
+- Require phase runner (Claude) to execute smoke script and report key outputs in phase notes.
+
+Exit criteria:
+
+- Runtime smoke passes end-to-end in a clean temp directory.
+- Validation is performed by the implementing agent itself (not assumed from tests).
+- Phase notes include commands run and observed outputs.
+
+### Phase 8: README and Operator Docs
 
 Deliverables:
 
@@ -542,7 +562,7 @@ Exit criteria:
 - New user can install and run first command in under 5 minutes following only `README.md`
 - README commands are validated against current CLI behavior
 
-### Phase 8: Web UI MVP (Vite + React)
+### Phase 9: Web UI MVP (Vite + React)
 
 Deliverables:
 
@@ -564,7 +584,7 @@ Exit criteria:
 - Search/filter operations work against real project data
 - UI runs locally without additional infrastructure
 
-### Phase 9: Web UI Enhancements and Usability
+### Phase 10: Web UI Enhancements and Usability
 
 Deliverables:
 
@@ -652,6 +672,7 @@ Mitigation:
 - [x] Validate against performance targets
 - [ ] Document hook usage for Claude and Codex
 - [ ] Implement private release packaging and installer (`curl | bash`)
+- [ ] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
 - [ ] Add/update `README.md` for install + quickstart + integrations
 - [ ] Build Web UI MVP using Vite + React (messages, search, filters)
 - [ ] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
