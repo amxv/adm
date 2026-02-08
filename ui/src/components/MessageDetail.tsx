@@ -49,7 +49,7 @@ export function MessageDetail({ messageId, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto"
+        className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto sm:max-h-[80vh] max-sm:mx-0 max-sm:rounded-none max-sm:max-h-full max-sm:h-full max-sm:border-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">

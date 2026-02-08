@@ -25,7 +25,7 @@ export function MessageFilters({ filters, onChange, agentNames }: Props) {
         placeholder="Search messages..."
         value={filters.q || ""}
         onChange={(e) => set("q", e.target.value)}
-        className="bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] w-48"
+        className="bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] w-full sm:w-48"
       />
 
       <select

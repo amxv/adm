@@ -77,7 +77,8 @@ export function MessageFeed({ messages, page, onPageChange, onSelect }: Props) {
             onClick={() => onSelect(m.id)}
             className="px-3 py-2 hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
           >
-            <div className="flex items-center gap-2">
+            {/* Desktop: single row */}
+            <div className="hidden sm:flex items-center gap-2">
               <span className="text-[var(--text-muted)] text-xs w-16 shrink-0">
                 {timeAgo(m.created_at)}
               </span>
@@ -99,7 +100,36 @@ export function MessageFeed({ messages, page, onPageChange, onSelect }: Props) {
               </span>
               <DeliveryBadge delivery={m.delivery} />
             </div>
-            <div className="text-[var(--text-secondary)] text-xs mt-1 ml-18 truncate">
+            {/* Mobile: stacked */}
+            <div className="sm:hidden space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-[var(--accent)] text-sm">
+                    {m.from}
+                  </span>
+                  <span className="text-[var(--text-muted)]">→</span>
+                  <span className="text-[var(--text-secondary)] text-sm truncate max-w-[120px]">
+                    {m.recipients.join(", ") || "(broadcast)"}
+                  </span>
+                </div>
+                <span className="text-[var(--text-muted)] text-xs shrink-0">
+                  {timeAgo(m.created_at)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`px-1.5 py-0.5 rounded text-xs ${
+                    m.kind === "broadcast"
+                      ? "bg-purple-900/30 text-purple-400"
+                      : "bg-blue-900/30 text-blue-400"
+                  }`}
+                >
+                  {m.kind}
+                </span>
+                <DeliveryBadge delivery={m.delivery} />
+              </div>
+            </div>
+            <div className="text-[var(--text-secondary)] text-xs mt-1 sm:ml-18 truncate">
               {m.body}
             </div>
           </div>

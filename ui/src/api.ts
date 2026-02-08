@@ -84,9 +84,33 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
   return res.json();
 }
 
+export interface ConflictPair {
+  claim_a: Claim;
+  claim_b: Claim;
+  overlap_type: "exact" | "subset" | "mutual" | "glob";
+}
+
+export interface ConflictsResponse {
+  conflicts: ConflictPair[];
+  total: number;
+}
+
+export interface SyncBatch {
+  token: string;
+  agent_name: string;
+  created_at: string;
+}
+
+export interface DeliveryDebugResponse {
+  receipts: DeliverySummary;
+  recent_batches: SyncBatch[];
+}
+
 export const api = {
   agents: () => get<Agent[]>("/agents"),
   claims: () => get<Claim[]>("/claims"),
+  claimConflicts: () => get<ConflictsResponse>("/claims/conflicts"),
+  deliveryDebug: () => get<DeliveryDebugResponse>("/debug/delivery"),
   messages: (filters?: MessageFilters) => {
     const params: Record<string, string> = {};
     if (filters) {

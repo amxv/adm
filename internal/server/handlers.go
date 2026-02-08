@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/amxv/adm/internal/pathnorm"
 )
 
 const (
@@ -378,6 +380,135 @@ func (s *Server) handleMessageDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, msg)
+}
+
+// --- Claim Conflicts ---
+
+type conflictPair struct {
+	ClaimA      claimRow `json:"claim_a"`
+	ClaimB      claimRow `json:"claim_b"`
+	OverlapType string   `json:"overlap_type"`
+}
+
+type conflictsResponse struct {
+	Conflicts []conflictPair `json:"conflicts"`
+	Total     int            `json:"total"`
+}
+
+func (s *Server) handleClaimConflicts(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.db.QueryContext(r.Context(), `
+		SELECT agent_name, path_pattern, path_norm, created_at, updated_at
+		FROM claims
+		ORDER BY agent_name, path_norm
+	`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query claims: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	var claims []claimRow
+	for rows.Next() {
+		var c claimRow
+		if err := rows.Scan(&c.AgentName, &c.PathPattern, &c.PathNorm, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan claim: "+err.Error())
+			return
+		}
+		claims = append(claims, c)
+	}
+
+	var conflicts []conflictPair
+	for i := 0; i < len(claims); i++ {
+		for j := i + 1; j < len(claims); j++ {
+			if claims[i].AgentName == claims[j].AgentName {
+				continue
+			}
+			aMatchesB := pathnorm.Match(claims[i].PathNorm, claims[j].PathNorm)
+			bMatchesA := pathnorm.Match(claims[j].PathNorm, claims[i].PathNorm)
+			if aMatchesB || bMatchesA {
+				overlapType := "glob"
+				if claims[i].PathNorm == claims[j].PathNorm {
+					overlapType = "exact"
+				} else if aMatchesB && bMatchesA {
+					overlapType = "mutual"
+				} else {
+					overlapType = "subset"
+				}
+				conflicts = append(conflicts, conflictPair{
+					ClaimA:      claims[i],
+					ClaimB:      claims[j],
+					OverlapType: overlapType,
+				})
+			}
+		}
+	}
+
+	if conflicts == nil {
+		conflicts = []conflictPair{}
+	}
+
+	writeJSON(w, http.StatusOK, conflictsResponse{
+		Conflicts: conflicts,
+		Total:     len(conflicts),
+	})
+}
+
+// --- Delivery Debug ---
+
+type deliveryDebugResponse struct {
+	Receipts     deliverySummary    `json:"receipts"`
+	RecentBatches []syncBatchRow    `json:"recent_batches"`
+}
+
+type syncBatchRow struct {
+	Token     string `json:"token"`
+	AgentName string `json:"agent_name"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (s *Server) handleDeliveryDebug(w http.ResponseWriter, r *http.Request) {
+	// Aggregate receipt counts.
+	var ds deliverySummary
+	err := s.db.QueryRowContext(r.Context(), `
+		SELECT
+			COALESCE(SUM(CASE WHEN state = 'pending' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN state = 'offered' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN state = 'delivered' THEN 1 ELSE 0 END), 0),
+			COUNT(*)
+		FROM message_receipts
+	`).Scan(&ds.Pending, &ds.Offered, &ds.Delivered, &ds.Total)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query receipts: "+err.Error())
+		return
+	}
+
+	// Recent sync batches.
+	rows, err := s.db.QueryContext(r.Context(), `
+		SELECT token, agent_name, created_at
+		FROM sync_batches
+		ORDER BY created_at DESC
+		LIMIT 20
+	`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query batches: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	batches := []syncBatchRow{}
+	for rows.Next() {
+		var b syncBatchRow
+		if err := rows.Scan(&b.Token, &b.AgentName, &b.CreatedAt); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan batch: "+err.Error())
+			return
+		}
+		batches = append(batches, b)
+	}
+
+	writeJSON(w, http.StatusOK, deliveryDebugResponse{
+		Receipts:      ds,
+		RecentBatches: batches,
+	})
 }
 
 // --- Helpers ---
