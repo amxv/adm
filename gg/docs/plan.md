@@ -11,6 +11,13 @@ This plan turns `gg/docs/spec.md` into an implementation sequence optimized for:
 
 The plan is intentionally staged so we can prove performance early, before adding non-essential features.
 
+## Current Status
+
+- Last updated: 2026-02-08
+- Current phase: Phase 1 (in progress)
+- Completed phases:
+  - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
+
 ## Scope
 
 ### In scope (V1)
@@ -231,7 +238,7 @@ Rules:
   - return selected messages + token
 - If selected rows == 0:
   - return empty `messages`
-  - return empty token (`""`) or omit `batch_token` (choose one and keep stable)
+  - return `batch_token` as an empty string (`""`) for a stable response shape
 
 ### `adm check-claim --file <path> --agent <name>`
 
@@ -316,6 +323,10 @@ To keep claims deterministic across agents:
 
 Store normalized value in DB and compare on normalized form only.
 
+Implementation note:
+
+- Treat `.git` as either a directory or file (to support worktree/submodule layouts).
+
 ## Hook Integration Contract
 
 ### Shared behavior (all providers)
@@ -393,6 +404,8 @@ Implement Go benchmarks and a simple CLI stress script.
 
 ### Phase 0: Scaffold and DB foundation
 
+Status: completed
+
 Deliverables:
 
 - Go module initialized
@@ -406,6 +419,8 @@ Exit criteria:
 
 ### Phase 1: Core lifecycle commands
 
+Status: completed
+
 Deliverables:
 
 - `register`, `status`
@@ -415,6 +430,9 @@ Deliverables:
 Exit criteria:
 
 - Commands work on happy path with tests
+- Core negative-path tests exist (`send` to unknown agent fails, invalid claim/check inputs fail cleanly)
+
+Notes: Added `--from` flag to send/broadcast for sender identity. Extracted pathnorm package for shared path normalization. check-claim outputs JSON for hook consumption. Commit: `eca61f0`.
 
 ### Phase 2: Sync and delivery semantics
 
@@ -453,6 +471,27 @@ Deliverables:
 Exit criteria:
 
 - Both provider paths tested in real workflow
+
+## Phase Completion Loop
+
+After each phase is completed:
+
+1. Run `go build ./...`
+2. Run `go vet ./...`
+3. Run `go test ./...`
+4. Commit implementation changes
+5. Update this file (`gg/docs/plan.md`) with:
+   - phase status
+   - what shipped
+   - any scope adjustments
+6. Commit the plan update separately
+7. Immediately begin the next phase
+
+If context is compacted/refreshed, the next agent session must start by reading:
+
+1. `gg/docs/spec.md`
+2. `gg/docs/plan.md`
+3. `CLAUDE.md`
 
 ## Operational Notes
 
@@ -494,9 +533,9 @@ Mitigation:
 
 ## Implementation Checklist
 
-- [ ] Initialize Go module and CLI skeleton
-- [ ] Implement DB bootstrap + migration v1
-- [ ] Implement register/status
+- [x] Initialize Go module and CLI skeleton
+- [x] Implement DB bootstrap + migration v1
+- [x] Implement register/status
 - [ ] Implement send/broadcast
 - [ ] Implement claim/unclaim/check-claim
 - [ ] Implement sync with ack-token flow
@@ -508,11 +547,11 @@ Mitigation:
 
 ## Immediate Next Step
 
-Start Phase 0 and keep the first PR intentionally small:
+Continue Phase 1 and keep the change set focused:
 
-1. CLI skeleton
-2. DB bootstrap at `.agents/adm/adm.db`
-3. Migration with all core tables and indexes
-4. Minimal `adm register` + `adm status` to validate end-to-end wiring
+1. Implement `send` with strict recipient validation
+2. Implement `broadcast` with materialized receipts (exclude sender)
+3. Implement `claim`, `unclaim`, and `check-claim`
+4. Add happy-path tests for all Phase 1 commands
 
-Then benchmark startup and empty-command overhead before adding more commands.
+Then run build/vet/test and update phase status in this file.
