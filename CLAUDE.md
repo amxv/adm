@@ -43,16 +43,23 @@ internal/cli/                 Command definitions (one file per command)
   sync.go                     adm sync - hook delivery endpoint
   inbox.go                    adm inbox - read-only message view
   ui.go                       adm ui - start local web dashboard
-  cli_test.go                 CLI integration tests (22 tests)
+  use.go                      adm use - set active agent identity
+  whoami.go                   adm whoami - show current identity
+  admin.go                    adm admin - maintenance commands (gated)
+  cli_test.go                 CLI integration tests (36 tests)
   bench_test.go               Benchmarks and concurrent stress test
+internal/identity/            Session-based agent identity
+  identity.go                 Session management, identity resolution chain
+internal/audit/               Mutation audit logging
+  audit.go                    Best-effort append-only audit log
 internal/server/              HTTP API + embedded frontend
   server.go                   Server struct, routing, JSON helpers
-  handlers.go                 API handlers (health, messages, agents, claims)
+  handlers.go                 API handlers (health, messages, agents, claims, audit)
   embed.go                    Embedded frontend static file serving
   dist/                       Built React frontend assets (embedded)
 internal/db/                  SQLite database layer
   db.go                       Open, close, pragmas, migrations
-  schema.go                   Table definitions and migration SQL (v1 + v2)
+  schema.go                   Table definitions and migration SQL (v1-v3)
 internal/pathnorm/            Path normalization utilities
   pathnorm.go                 Normalize, FindRepoRoot, Match
   pathnorm_test.go            Path normalization tests

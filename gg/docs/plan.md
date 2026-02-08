@@ -14,7 +14,7 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 11 (next)
+- Current phase: All V1 phases complete
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
@@ -27,6 +27,7 @@ The plan is intentionally staged so we can prove performance early, before addin
   - Phase 8 completed in commit `ccf6f37` (README with install, quickstart, hooks, troubleshooting, upgrade)
   - Phase 9 completed in commit `a0485fc` (Web UI MVP: HTTP API, React dashboard, search/filter, embed)
   - Phase 10 completed (Web UI enhancements: filter presets, conflict radar, delivery debug, responsive layout)
+  - Phase 11 completed in commit `276ccbf` (session identity, audit log, admin commands)
 
 ## Scope
 
@@ -630,6 +631,8 @@ Notes: Added 2 new API endpoints: `GET /api/v1/claims/conflicts` (O(n^2) pairwis
 
 ### Phase 11: Identity and Integrity Hardening (Session-Based)
 
+Status: completed
+
 Deliverables:
 
 - Add session-based agent identity so agents do not pass tokens on every command.
@@ -647,6 +650,8 @@ Exit criteria:
 - Unauthorized mutations fail cleanly when no valid session capability is present.
 - Audit trail records all mutating operations.
 - Runtime smoke suite includes session/authorization checks.
+
+Notes: New `internal/identity` package with `Resolve()` function implementing 4-level identity chain: explicit flag > `ADM_AGENT` env var > session file (`.agents/adm/state/session.json`) > legacy agent file (`.agents/adm/agent`). `adm use <name> [--task desc]` registers agent + creates session file with token. `adm whoami` prints resolved identity. All mutating commands (`send`, `broadcast`, `claim`, `unclaim`, `sync`) now accept optional `--from`/`--agent` flags with session fallback. Read commands (`inbox`, `check-claim`) also support optional `--agent` for convenience. Schema v3 adds `audit_log` table (agent_name, action, target, detail, outcome, created_at) with indexes on agent+time and action+time. All mutations (register, use, send, broadcast, claim, unclaim, sync) log to audit trail via best-effort `audit.Log()`. New `internal/audit` package. Admin commands gated by `ADM_ADMIN=1` env var: `adm admin audit-log [--limit N]` shows recent entries, `adm admin purge-delivered [--days N]` cleans fully-delivered messages older than N days (cascades receipts, messages, sync batches). API endpoint `GET /api/v1/audit` added with agent/action filtering and pagination. Claude hooks updated to check session file as identity source (priority: env > session > agent file). 15 new CLI tests added (36 total): TestUseCreatesSession, TestUseWithoutTask, TestUseThenSendWithoutFrom, TestUseThenBroadcastWithoutFrom, TestUseThenClaimWithoutAgent, TestUseThenUnclaimWithoutAgent, TestUseThenSyncWithoutAgent, TestSendFailsWithoutIdentity, TestWhoamiWithSession, TestWhoamiWithEnvVar, TestWhoamiFailsWithoutIdentity, TestAdminRequiresEnvVar, TestAdminAuditLogShowsEntries, TestAdminPurgeDelivered. Smoke test expanded from 30 to 45 assertions across 9 sections. All tests pass. Commit: `276ccbf`.
 
 ## Phase Completion Loop
 
@@ -726,8 +731,8 @@ Mitigation:
 - [x] Add/update `README.md` for install + quickstart + integrations
 - [x] Build Web UI MVP using Vite + React (messages, search, filters)
 - [x] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
-- [ ] Implement session-based identity hardening and mutation audit trail
+- [x] Implement session-based identity hardening and mutation audit trail
 
 ## Immediate Next Step
 
-Start Phase 11: Identity and Integrity Hardening (Session-Based).
+All V1 implementation phases are complete.
