@@ -14,7 +14,7 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: All V1 phases complete
+- Current phase: All phases complete
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
@@ -28,6 +28,7 @@ The plan is intentionally staged so we can prove performance early, before addin
   - Phase 9 completed in commit `a0485fc` (Web UI MVP: HTTP API, React dashboard, search/filter, embed)
   - Phase 10 completed (Web UI enhancements: filter presets, conflict radar, delivery debug, responsive layout)
   - Phase 11 completed in commit `276ccbf` (session identity, audit log, admin commands)
+  - Phase 12 completed in commit `0c5d051` (task-update, legacy script removal, docs-first identity workflow)
 
 ## Scope
 
@@ -206,6 +207,19 @@ Indexes:
 - Update `task`, `updated_at`, `last_seen_at`
 - Idempotent
 
+### `adm task-update --task <description>`
+
+- Resolve current agent identity from flag/env/session context
+- Fail fast if identity cannot be resolved or agent is not registered
+- Update only `task`, `updated_at`, `last_seen_at`
+- Emit a clear confirmation line for human operators and deterministic text for hooks/tests
+
+### `adm whoami`
+
+- Print resolved active identity
+- Exit non-zero with actionable error if identity cannot be resolved
+- Include identity source in verbose mode (defer if not needed in v1.1)
+
 ### `adm send --to <name> --msg <text>`
 
 - Recipient must already exist in `agents`; if not, command fails fast with non-zero exit.
@@ -218,7 +232,7 @@ Indexes:
 - Materialize one `message_receipts` row for each other active/known agent
 - Keep sender excluded unless `--include-self` exists (defer flag in v1)
 
-### `adm sync --agent <name> [--ack-token <token>] --format json`
+### `adm sync [--agent <name>] [--ack-token <token>] --format json`
 
 Hot path. Must be transactionally safe and fast.
 
@@ -251,7 +265,7 @@ Rules:
   - return empty `messages`
   - return `batch_token` as an empty string (`""`) for a stable response shape
 
-### `adm check-claim --file <path> --agent <name>`
+### `adm check-claim --file <path> [--agent <name>]`
 
 - Normalize input path relative to repo root
 - Return warning data if file matches claims by other agents
@@ -537,7 +551,7 @@ Exit criteria:
 - Installed binary version matches requested/default version
 - Checksums are validated successfully
 
-Notes: Makefile with cross-platform build targets, versioned tar.gz archives, SHA-256 checksums. Version injection via -ldflags (`adm --version`). Installer script with OS/arch detection and checksum verification. Agent identity switch helper (`scripts/adm-switch.sh`). Tested release build producing 4 platform archives (~2.7MB each). Hooks moved to global settings (`~/.gg/claude/settings.json`), binary installed to `~/.local/bin/adm`. Commit: `01acafe`.
+Notes: Makefile with cross-platform build targets, versioned tar.gz archives, SHA-256 checksums. Version injection via -ldflags (`adm --version`). Installer script with OS/arch detection and checksum verification. Tested release build producing 4 platform archives (~2.7MB each). Hooks moved to global settings (`~/.gg/claude/settings.json`), binary installed to `~/.local/bin/adm`. Commit: `01acafe`.
 
 ### Phase 7: Runtime Validation Gate (Self-Verified)
 
@@ -651,7 +665,28 @@ Exit criteria:
 - Audit trail records all mutating operations.
 - Runtime smoke suite includes session/authorization checks.
 
-Notes: New `internal/identity` package with `Resolve()` function implementing 4-level identity chain: explicit flag > `ADM_AGENT` env var > session file (`.agents/adm/state/session.json`) > legacy agent file (`.agents/adm/agent`). `adm use <name> [--task desc]` registers agent + creates session file with token. `adm whoami` prints resolved identity. All mutating commands (`send`, `broadcast`, `claim`, `unclaim`, `sync`) now accept optional `--from`/`--agent` flags with session fallback. Read commands (`inbox`, `check-claim`) also support optional `--agent` for convenience. Schema v3 adds `audit_log` table (agent_name, action, target, detail, outcome, created_at) with indexes on agent+time and action+time. All mutations (register, use, send, broadcast, claim, unclaim, sync) log to audit trail via best-effort `audit.Log()`. New `internal/audit` package. Admin commands gated by `ADM_ADMIN=1` env var: `adm admin audit-log [--limit N]` shows recent entries, `adm admin purge-delivered [--days N]` cleans fully-delivered messages older than N days (cascades receipts, messages, sync batches). API endpoint `GET /api/v1/audit` added with agent/action filtering and pagination. Claude hooks updated to check session file as identity source (priority: env > session > agent file). 15 new CLI tests added (36 total): TestUseCreatesSession, TestUseWithoutTask, TestUseThenSendWithoutFrom, TestUseThenBroadcastWithoutFrom, TestUseThenClaimWithoutAgent, TestUseThenUnclaimWithoutAgent, TestUseThenSyncWithoutAgent, TestSendFailsWithoutIdentity, TestWhoamiWithSession, TestWhoamiWithEnvVar, TestWhoamiFailsWithoutIdentity, TestAdminRequiresEnvVar, TestAdminAuditLogShowsEntries, TestAdminPurgeDelivered. Smoke test expanded from 30 to 45 assertions across 9 sections. All tests pass. Commit: `276ccbf`.
+Notes: New `internal/identity` package with `Resolve()` function implementing 4-level identity chain: explicit flag > `ADM_AGENT` env var > session file (`.agents/adm/state/session.json`) > legacy fallback source. `adm use <name> [--task desc]` registers agent + creates session file with token. `adm whoami` prints resolved identity. All mutating commands (`send`, `broadcast`, `claim`, `unclaim`, `sync`) now accept optional `--from`/`--agent` flags with session fallback. Read commands (`inbox`, `check-claim`) also support optional `--agent` for convenience. Schema v3 adds `audit_log` table (agent_name, action, target, detail, outcome, created_at) with indexes on agent+time and action+time. All mutations (register, use, send, broadcast, claim, unclaim, sync) log to audit trail via best-effort `audit.Log()`. New `internal/audit` package. Admin commands gated by `ADM_ADMIN=1` env var: `adm admin audit-log [--limit N]` shows recent entries, `adm admin purge-delivered [--days N]` cleans fully-delivered messages older than N days (cascades receipts, messages, sync batches). API endpoint `GET /api/v1/audit` added with agent/action filtering and pagination. Claude hooks updated to check session file as identity source (priority: env > session > legacy fallback). 15 new CLI tests added (36 total): TestUseCreatesSession, TestUseWithoutTask, TestUseThenSendWithoutFrom, TestUseThenBroadcastWithoutFrom, TestUseThenClaimWithoutAgent, TestUseThenUnclaimWithoutAgent, TestUseThenSyncWithoutAgent, TestSendFailsWithoutIdentity, TestWhoamiWithSession, TestWhoamiWithEnvVar, TestWhoamiFailsWithoutIdentity, TestAdminRequiresEnvVar, TestAdminAuditLogShowsEntries, TestAdminPurgeDelivered. Smoke test expanded from 30 to 45 assertions across 9 sections. All tests pass. Commit: `276ccbf`. Superseded in part by planned Phase 12 identity cleanup (remove manual file workflow from agent guidance).
+
+### Phase 12: CLI Ergonomics and Identity UX Cleanup
+
+Status: completed
+
+Deliverables:
+
+- Add `adm task-update --task <description>` for explicit task changes without re-register boilerplate.
+- Promote `adm whoami` as the default identity introspection command in docs, hooks, and smoke tests.
+- Remove manual identity workflow from agent guidance (`.agents/adm/agent` edits and `scripts/adm-switch.sh`).
+- Update command UX so day-to-day usage prefers resolved identity with optional override flags.
+- Keep compatibility for existing hooks while deprecating legacy identity-file fallback path.
+
+Exit criteria:
+
+- Agents can onboard and update task using only `register`, `task-update`, and `whoami`.
+- No primary documentation instructs direct file mutation for identity.
+- CLI and smoke tests cover success/failure behavior for `task-update` and `whoami`.
+- Hook docs are aligned with the simplified identity workflow.
+
+Notes: New `adm task-update --task <desc>` command resolves identity via `identity.Resolve("")` and updates only `task`, `updated_at`, `last_seen_at` fields. Fails fast if agent not registered or no identity available. Audit-logged. Deleted legacy identity scripts `scripts/adm-switch.sh` and `scripts/set-agent.sh` — identity is now managed exclusively through CLI commands (`adm use`, `adm register`, `adm whoami`). Updated all docs: README quickstart uses `adm use`/`adm whoami`/`adm task-update` workflow, `--from`/`--agent` flags omitted from examples (session resolution), identity switching via `adm use` not scripts, data location shows `session.json` not `agent` file, project layout updated. Hook docs (`docs/hooks.md`) updated: prerequisites reference `adm use`, identity section explains session file, Codex setup uses `adm use`, state files section documents `session.json`. CLAUDE.md agent guidance updated to use `adm use` + `adm task-update`. Spec updated with Identity and Task Management section, CLI interface reflects optional `--from`/`--agent`. 4 new CLI tests (TestTaskUpdateHappyPath, TestTaskUpdateFailsWithoutIdentity, TestTaskUpdateFailsForUnregisteredAgent, TestTaskUpdateWithEnvVar) — 40 total. 5 new smoke assertions (task-update with session, agent name, new task, status verification, failure without identity) — 50 total + 6 hook assertions. Legacy fallback path (`.agents/adm/agent` file) still works in `identity.Resolve` for backward compatibility but is not documented. Commit: `0c5d051`.
 
 ## Phase Completion Loop
 
@@ -732,7 +767,8 @@ Mitigation:
 - [x] Build Web UI MVP using Vite + React (messages, search, filters)
 - [x] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
 - [x] Implement session-based identity hardening and mutation audit trail
+- [x] Phase 12: improve CLI identity UX (`task-update`, `whoami` docs-first workflow, remove manual identity guidance)
 
 ## Immediate Next Step
 
-All V1 implementation phases are complete.
+All planned phases (0-12) are complete. The project is feature-complete for V1.
