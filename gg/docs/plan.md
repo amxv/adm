@@ -14,7 +14,7 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 10 (next)
+- Current phase: Phase 11 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
@@ -26,6 +26,7 @@ The plan is intentionally staged so we can prove performance early, before addin
   - Phase 7 completed in commit `517faab` (runtime smoke script, 30 CLI + 6 hook assertions, self-verified)
   - Phase 8 completed in commit `ccf6f37` (README with install, quickstart, hooks, troubleshooting, upgrade)
   - Phase 9 completed in commit `a0485fc` (Web UI MVP: HTTP API, React dashboard, search/filter, embed)
+  - Phase 10 completed (Web UI enhancements: filter presets, conflict radar, delivery debug, responsive layout)
 
 ## Scope
 
@@ -611,6 +612,8 @@ Notes: Added HTTP API layer (`internal/server/`) with 5 read-only endpoints usin
 
 ### Phase 10: Web UI Enhancements and Usability
 
+Status: completed
+
 Deliverables:
 
 - Saved filters/presets for common workflows
@@ -622,6 +625,8 @@ Exit criteria:
 
 - UI is usable for day-to-day multi-agent monitoring
 - Key debugging tasks can be completed without SQL/manual log inspection
+
+Notes: Added 2 new API endpoints: `GET /api/v1/claims/conflicts` (O(n^2) pairwise claim overlap detection using `pathnorm.Match()` with exact/subset/mutual/glob overlap types) and `GET /api/v1/debug/delivery` (aggregate receipt counts by state + recent 20 sync batches). Frontend: filter presets with 3 built-in presets (All, Pending, Broadcasts) + custom presets saved to localStorage (`ui/src/presets.ts` + `FilterPresets.tsx`). Conflict radar panel (`ConflictRadar.tsx`) in sidebar below claims, polls every 10s, shows overlapping claims between different agents. Delivery debug panel (`DeliveryDebug.tsx`) below message feed, collapsible (collapsed by default), polls every 5s, shows receipt summary (pending/offered/delivered/total) and recent sync batch tokens. Responsive layout: grid stacks on mobile (`grid-cols-1 md:grid-cols-[280px_1fr]`), sidebar toggleable via hamburger menu on mobile, message feed uses stacked metadata on small screens, message detail modal goes full-screen on mobile, search input is full-width on mobile. All existing tests pass.
 
 ### Phase 11: Identity and Integrity Hardening (Session-Based)
 
@@ -720,14 +725,9 @@ Mitigation:
 - [x] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
 - [x] Add/update `README.md` for install + quickstart + integrations
 - [x] Build Web UI MVP using Vite + React (messages, search, filters)
-- [ ] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
+- [x] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
 - [ ] Implement session-based identity hardening and mutation audit trail
 
 ## Immediate Next Step
 
-Start Phase 10: Web UI Enhancements and Usability.
-
-1. Add saved filters/presets for common workflows
-2. Build conflict radar view (claim overlap and coordination hotspots)
-3. Add delivery debug panel (pending/offered/delivered counts and batch tokens)
-4. Polish desktop and mobile layouts
+Start Phase 11: Identity and Integrity Hardening (Session-Based).
