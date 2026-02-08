@@ -24,4 +24,9 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(registerCmd)
 	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(sendCmd)
+	rootCmd.AddCommand(broadcastCmd)
+	rootCmd.AddCommand(claimCmd)
+	rootCmd.AddCommand(unclaimCmd)
+	rootCmd.AddCommand(checkClaimCmd)
 }

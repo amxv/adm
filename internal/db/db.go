@@ -6,13 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/amxv/adm/internal/pathnorm"
 	_ "modernc.org/sqlite"
 )
 
 // Open finds the project root, ensures the .agents/adm/ directory exists,
 // opens the SQLite database, sets pragmas, and runs migrations.
 func Open() (*sql.DB, error) {
-	root, err := findProjectRoot()
+	root, err := pathnorm.FindRepoRoot()
 	if err != nil {
 		return nil, fmt.Errorf("find project root: %w", err)
 	}
@@ -60,25 +61,4 @@ func setPragmas(db *sql.DB) error {
 func migrate(db *sql.DB) error {
 	_, err := db.Exec(schemaV1)
 	return err
-}
-
-// findProjectRoot walks upward from the current working directory looking
-// for a .git directory. Falls back to CWD if none is found.
-func findProjectRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		if info, err := os.Stat(filepath.Join(dir, ".git")); err == nil && info.IsDir() {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached filesystem root, fall back to CWD.
-			return os.Getwd()
-		}
-		dir = parent
-	}
 }
