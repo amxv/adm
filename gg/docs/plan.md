@@ -14,7 +14,7 @@ The plan is intentionally staged so we can prove performance early, before addin
 ## Current Status
 
 - Last updated: 2026-02-08
-- Current phase: Phase 9 (next)
+- Current phase: Phase 10 (next)
 - Completed phases:
   - Phase 0 completed in commit `0550acd` (CLI scaffold, DB bootstrap, schema v1, `register`/`status`)
   - Phase 1 completed in commit `eca61f0` (send/broadcast/claim/unclaim/check-claim commands)
@@ -25,6 +25,7 @@ The plan is intentionally staged so we can prove performance early, before addin
   - Phase 6 completed in commit `01acafe` (Makefile, installer, version injection, cross-platform builds)
   - Phase 7 completed in commit `517faab` (runtime smoke script, 30 CLI + 6 hook assertions, self-verified)
   - Phase 8 completed in commit `ccf6f37` (README with install, quickstart, hooks, troubleshooting, upgrade)
+  - Phase 9 completed in commit `a0485fc` (Web UI MVP: HTTP API, React dashboard, search/filter, embed)
 
 ## Scope
 
@@ -584,6 +585,8 @@ Notes: Created `README.md` (310 lines) covering: what ADM is, install from sourc
 
 ### Phase 9: Web UI MVP (Vite + React)
 
+Status: completed
+
 Deliverables:
 
 - Create lightweight web UI using `Vite + React`
@@ -603,6 +606,8 @@ Exit criteria:
 - Operator can open UI and see all messages with usable latency
 - Search/filter operations work against real project data
 - UI runs locally without additional infrastructure
+
+Notes: Added HTTP API layer (`internal/server/`) with 5 read-only endpoints using Go stdlib `net/http` (Go 1.24 pattern matching): `GET /api/v1/health` (status + version), `GET /api/v1/messages` (search/filter/pagination with `q`, `from`, `to`, `kind`, `state`, `from_ts`, `to_ts`, `limit`, `offset` params), `GET /api/v1/messages/{id}` (full message + per-recipient receipt state), `GET /api/v1/agents` (name, task, online/stale, last_seen_at), `GET /api/v1/claims` (grouped by agent). CLI command `adm ui` with `--host` (default 127.0.0.1), `--port` (default 7777), `--open` (auto-open browser) flags. Frontend: Vite + React + TypeScript + Tailwind CSS 4 with dark monospace theme. Components: message feed with delivery badges, agent status panel with from/to filter buttons, claims panel grouped by agent, message detail modal with receipt state table, filter bar (text search, from/to/kind/state dropdowns). Polling: agents 5s, messages 3s, claims 10s. Frontend builds to `internal/server/dist/` and is embedded in Go binary via `//go:embed`. Makefile updated with `ui` target for frontend build. All API endpoints verified against live database with 21 messages, 2 agents. Commit: `a0485fc`.
 
 ### Phase 10: Web UI Enhancements and Usability
 
@@ -714,14 +719,15 @@ Mitigation:
 - [x] Implement private release packaging and installer (`curl | bash`)
 - [x] Add and run runtime smoke validation gate (`scripts/smoke.sh`) with captured outputs
 - [x] Add/update `README.md` for install + quickstart + integrations
-- [ ] Build Web UI MVP using Vite + React (messages, search, filters)
+- [x] Build Web UI MVP using Vite + React (messages, search, filters)
 - [ ] Add Web UI enhancements (saved filters, conflict radar, delivery debug)
 - [ ] Implement session-based identity hardening and mutation audit trail
 
 ## Immediate Next Step
 
-Start Phase 9: Web UI MVP (Vite + React).
+Start Phase 10: Web UI Enhancements and Usability.
 
-1. Add minimal HTTP API layer in `adm` for UI reads (local-only)
-2. Build operator dashboard with message feed, agent status, claims panel
-3. Add search/filtering and pagination
+1. Add saved filters/presets for common workflows
+2. Build conflict radar view (claim overlap and coordination hotspots)
+3. Add delivery debug panel (pending/offered/delivered counts and batch tokens)
+4. Polish desktop and mobile layouts
