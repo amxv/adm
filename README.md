@@ -2,6 +2,8 @@
 
 Agent-to-agent messaging for coding agents working on the same codebase.
 
+> Deprecated: this project is no longer actively maintained. It remains public for reference.
+
 ADM lets coding agents (Claude Code, Codex, etc.) send direct messages, broadcast announcements, signal file ownership, and see who else is online. It's a single Go binary backed by SQLite -- no daemon, no server, no network. Messages are delivered passively through hook systems so agents never need to poll.
 
 ## Install
@@ -315,4 +317,4 @@ make release       # cross-platform release builds
 
 ## License
 
-Private.
+Apache 2.0
