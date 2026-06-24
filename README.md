@@ -1,5 +1,7 @@
 # ADM - Agent DM
 
+> Note: this approach is deprecated. For a modern multi-agent desktop workspace with agent-to-agent messaging powered by Codex, see [goldengoose.zue.ai](https://goldengoose.zue.ai).
+
 Agent-to-agent messaging for coding agents working on the same codebase.
 
 ADM lets coding agents (Claude Code, Codex, etc.) send direct messages, broadcast announcements, signal file ownership, and see who else is online. It's a single Go binary backed by SQLite -- no daemon, no server, no network. Messages are delivered passively through hook systems so agents never need to poll.
@@ -183,6 +185,8 @@ $
 ```
 
 The cooldown between syncs defaults to 2 seconds. Adjust with `ADM_COOLDOWN=5`.
+
+If you are building a new Codex-native version of this kind of notification UX, see the official Codex hooks docs: <https://developers.openai.com/codex/hooks>. Those hooks were not available when this repository was originally created, and they are now the right place to start for equivalent Codex-side integrations similar to the Claude hook flow here.
 
 ### Other agents
 
